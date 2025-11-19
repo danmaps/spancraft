@@ -56,7 +56,6 @@
     <div id="crosshair"></div>
     <script type="module">
         import * as THREE from 'three';
-
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 
         // Scene setup
@@ -91,11 +90,23 @@
         const dummy = new THREE.Object3D();
         let index = 0;
 
+        // World Data
+        const world = new Map(); // Key: "x,y,z", Value: true
+
+        function getChunkKey(x, y, z) {
+            return `${x},${y},${z}`;
+        }
+
         for (let x = 0; x < worldSize; x++) {
             for (let z = 0; z < worldSize; z++) {
-                dummy.position.set(x - worldSize / 2, 0, z - worldSize / 2);
+                const wx = x - worldSize / 2;
+                const wz = z - worldSize / 2;
+                dummy.position.set(wx, 0, wz);
                 dummy.updateMatrix();
                 mesh.setMatrixAt(index++, dummy.matrix);
+
+                // Populate world data
+                world.set(getChunkKey(wx, 0, wz), true);
             }
         }
         mesh.instanceMatrix.needsUpdate = true;
@@ -114,7 +125,12 @@
                 case 'KeyS': moveBackward = true; break;
                 case 'ArrowRight':
                 case 'KeyD': moveRight = true; break;
-                case 'Space': if (canJump === true) velocity.y += 15; canJump = false; break;
+                case 'Space':
+                    if (canJump) {
+                        velocity.y += 12; // Jump force
+                        canJump = false;
+                    }
+                    break;
             }
         };
 
@@ -145,6 +161,10 @@
         const direction = new THREE.Vector3();
         let prevTime = performance.now();
 
+        // Player dimensions
+        const playerHeight = 1.8;
+        const playerWidth = 0.6;
+
         // Interaction
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
@@ -162,65 +182,147 @@
 
             if (highlightMesh.visible) {
                 if (event.button === 0) { // Left click: Remove
-                    // We need to find which object we are looking at
                     const intersects = raycaster.intersectObjects(objects);
                     if (intersects.length > 0) {
-                        const instanceId = intersects[0].instanceId;
+                        const intersect = intersects[0];
+                        const instanceId = intersect.instanceId;
+
+                        let blockPos;
                         if (instanceId !== undefined) {
-                            // It's an instanced mesh block
                             const matrix = new THREE.Matrix4();
                             mesh.getMatrixAt(instanceId, matrix);
+                            blockPos = new THREE.Vector3().setFromMatrixPosition(matrix);
+
                             matrix.scale(new THREE.Vector3(0, 0, 0));
                             mesh.setMatrixAt(instanceId, matrix);
                             mesh.instanceMatrix.needsUpdate = true;
                         } else {
-                            // It's a placed block (normal Mesh)
-                            scene.remove(intersects[0].object);
-                            objects.splice(objects.indexOf(intersects[0].object), 1);
+                            blockPos = intersect.object.position.clone();
+                            scene.remove(intersect.object);
+                            objects.splice(objects.indexOf(intersect.object), 1);
                         }
+
+                        world.delete(getChunkKey(Math.round(blockPos.x), Math.round(blockPos.y), Math.round(blockPos.z)));
                     }
                 } else if (event.button === 2) { // Right click: Place
                     const intersects = raycaster.intersectObjects(objects);
                     if (intersects.length > 0) {
                         const intersect = intersects[0];
+
+                        // Fix: Use Math.round to find integer center, NOT floor + 0.5
+                        const voxelPos = intersect.point.clone().add(intersect.face.normal.clone().multiplyScalar(0.5));
+                        voxelPos.x = Math.round(voxelPos.x);
+                        voxelPos.y = Math.round(voxelPos.y);
+                        voxelPos.z = Math.round(voxelPos.z);
+
+                        // Check if player is inside the block we are trying to place
+                        const playerPos = controls.getObject().position;
+                        const dx = Math.abs(playerPos.x - voxelPos.x);
+                        const dz = Math.abs(playerPos.z - voxelPos.z);
+                        const dy = playerPos.y - voxelPos.y;
+
+                        if (dx < playerWidth / 2 + 0.5 && dz < playerWidth / 2 + 0.5) {
+                            if (dy > -1.0 && dy < 1.8) {
+                                return;
+                            }
+                        }
+
                         const voxel = new THREE.Mesh(geometry, material);
-                        voxel.position.copy(intersect.point).add(intersect.face.normal.clone().multiplyScalar(0.5)).addScalar(0.5).floor();
+                        voxel.position.copy(voxelPos);
                         scene.add(voxel);
                         objects.push(voxel);
+
+                        world.set(getChunkKey(Math.round(voxelPos.x), Math.round(voxelPos.y), Math.round(voxelPos.z)), true);
                     }
                 }
             }
         });
+
+        function checkCollision(position) {
+            const x = Math.round(position.x);
+            const y = Math.round(position.y);
+            const z = Math.round(position.z);
+            return world.has(getChunkKey(x, y, z));
+        }
 
         // Animation Loop
         function animate() {
             requestAnimationFrame(animate);
 
             const time = performance.now();
-            const delta = (time - prevTime) / 1000;
+            const delta = Math.min((time - prevTime) / 1000, 0.1);
 
             if (controls.isLocked === true) {
-                // ... (Physics code remains same) ...
+
+                // Friction
                 velocity.x -= velocity.x * 10.0 * delta;
                 velocity.z -= velocity.z * 10.0 * delta;
-                velocity.y -= 9.8 * 5.0 * delta; // 100.0 = mass
+                velocity.y -= 30.0 * delta; // Gravity
 
-                direction.z = Number(moveForward) - Number(moveBackward);
-                direction.x = Number(moveRight) - Number(moveLeft);
-                direction.normalize();
+                // Get camera direction
+                const forward = new THREE.Vector3();
+                controls.getDirection(forward);
+                forward.y = 0;
+                forward.normalize();
 
-                if (moveForward || moveBackward) velocity.z -= direction.z * 100.0 * delta;
-                if (moveLeft || moveRight) velocity.x -= direction.x * 100.0 * delta;
+                const right = new THREE.Vector3();
+                right.crossVectors(forward, camera.up).normalize();
 
-                controls.moveRight(-velocity.x * delta);
-                controls.moveForward(-velocity.z * delta);
+                // Calculate input direction in world space
+                const inputVector = new THREE.Vector3();
+                if (moveForward) inputVector.add(forward);
+                if (moveBackward) inputVector.sub(forward);
+                if (moveRight) inputVector.add(right);
+                if (moveLeft) inputVector.sub(right);
+                inputVector.normalize();
 
-                controls.getObject().position.y += (velocity.y * delta);
+                // Apply movement force
+                if (moveForward || moveBackward || moveLeft || moveRight) {
+                    velocity.x += inputVector.x * 100.0 * delta;
+                    velocity.z += inputVector.z * 100.0 * delta;
+                }
 
-                if (controls.getObject().position.y < 1.5) {
+                // Collision Detection
+                const playerObj = controls.getObject();
+                const originalPos = playerObj.position.clone();
+
+                // 1. Apply X movement
+                playerObj.position.x += velocity.x * delta;
+                if (checkHorizontalCollision(playerObj.position)) {
+                    playerObj.position.x = originalPos.x;
+                    velocity.x = 0;
+                }
+
+                // 2. Apply Z movement
+                playerObj.position.z += velocity.z * delta;
+                if (checkHorizontalCollision(playerObj.position)) {
+                    playerObj.position.z = originalPos.z;
+                    velocity.z = 0;
+                }
+
+                // 3. Apply Y movement
+                playerObj.position.y += velocity.y * delta;
+
+                // Ground/Ceiling Check
+                if (velocity.y < 0) {
+                    if (checkVerticalCollision(playerObj.position, true)) {
+                        velocity.y = 0;
+                        canJump = true;
+                        const feetY = playerObj.position.y - 1.5;
+                        const blockY = Math.round(feetY);
+                        playerObj.position.y = blockY + 0.5 + 1.5;
+                    }
+                }
+                else if (velocity.y > 0) {
+                    if (checkVerticalCollision(playerObj.position, false)) {
+                        velocity.y = 0;
+                        playerObj.position.y = Math.floor(playerObj.position.y + 0.1) - 0.1 - 0.1;
+                    }
+                }
+
+                if (playerObj.position.y < -10) {
                     velocity.y = 0;
-                    controls.getObject().position.y = 1.5;
-                    canJump = true;
+                    playerObj.position.set(0, 10, 0);
                 }
 
                 // Raycasting
@@ -229,15 +331,13 @@
 
                 if (intersects.length > 0) {
                     const intersect = intersects[0];
-                    highlightMesh.position.copy(intersect.point).add(intersect.face.normal.clone().multiplyScalar(0.5)).floor().addScalar(0.5);
-                    // Adjust highlight position based on whether we are looking at the block or empty space (for placement logic it's tricky, 
-                    // but for highlighting the TARGET block, we should look at intersect.point - normal * small_amount)
-                    // Actually, standard Minecraft highlights the block you are looking AT.
+                    // Fix: Use Math.round for highlight target too
+                    const lookTarget = intersect.point.clone().sub(intersect.face.normal.clone().multiplyScalar(0.1));
+                    lookTarget.x = Math.round(lookTarget.x);
+                    lookTarget.y = Math.round(lookTarget.y);
+                    lookTarget.z = Math.round(lookTarget.z);
 
-                    // Re-calculate to highlight the existing block
-                    const lookTarget = intersect.point.clone().sub(intersect.face.normal.clone().multiplyScalar(0.1)).addScalar(0.5).floor();
                     highlightMesh.position.copy(lookTarget);
-
                     highlightMesh.visible = true;
                 } else {
                     highlightMesh.visible = false;
@@ -248,6 +348,66 @@
 
             renderer.render(scene, camera);
         }
+
+        function checkHorizontalCollision(pos) {
+            const x = pos.x;
+            const y = pos.y;
+            const z = pos.z;
+            const w = 0.3; // Half width
+
+            // Check legs (y-1.4), waist (y-0.8), and head (y+0.1)
+            // We avoid checking exactly at feet (y-1.5) to prevent getting stuck on the floor
+
+            const points = [
+                // Legs
+                new THREE.Vector3(x - w, y - 1.4, z - w),
+                new THREE.Vector3(x + w, y - 1.4, z - w),
+                new THREE.Vector3(x - w, y - 1.4, z + w),
+                new THREE.Vector3(x + w, y - 1.4, z + w),
+
+                // Waist
+                new THREE.Vector3(x - w, y - 0.8, z - w),
+                new THREE.Vector3(x + w, y - 0.8, z - w),
+                new THREE.Vector3(x - w, y - 0.8, z + w),
+                new THREE.Vector3(x + w, y - 0.8, z + w),
+
+                // Head
+                new THREE.Vector3(x, y + 0.1, z)
+            ];
+
+            for (const p of points) {
+                if (checkCollision(p)) return true;
+            }
+            return false;
+        }
+
+        function checkVerticalCollision(pos, isFalling) {
+            const x = pos.x;
+            const y = pos.y;
+            const z = pos.z;
+            const w = 0.3;
+
+            const points = [];
+
+            if (isFalling) {
+                // Check feet
+                points.push(
+                    new THREE.Vector3(x - w, y - 1.5, z - w),
+                    new THREE.Vector3(x + w, y - 1.5, z - w),
+                    new THREE.Vector3(x - w, y - 1.5, z + w),
+                    new THREE.Vector3(x + w, y - 1.5, z + w)
+                );
+            } else {
+                // Check head
+                points.push(new THREE.Vector3(x, y + 0.1, z));
+            }
+
+            for (const p of points) {
+                if (checkCollision(p)) return true;
+            }
+            return false;
+        }
+
         animate();
 
         // Resize Handler
