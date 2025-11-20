@@ -160,7 +160,10 @@
             new THREE.MeshLambertMaterial({ map: textureSide })  // Back
         ];
 
-        const mesh = new THREE.InstancedMesh(geometry, materials, worldSize * worldSize);
+        // Terrain settings
+        const terrainThickness = 3;
+        const maxCount = worldSize * worldSize * terrainThickness; // Approximate max blocks
+        const mesh = new THREE.InstancedMesh(geometry, materials, maxCount);
         mesh.receiveShadow = true;
         mesh.castShadow = true;
         scene.add(mesh);
@@ -175,18 +178,38 @@
             return `${x},${y},${z}`;
         }
 
+        // Simple pseudo-random height function
+        const seedX = Math.random() * 100;
+        const seedZ = Math.random() * 100;
+
+        function getHeight(x, z) {
+            // Combine sine waves for some variation
+            const scale = 0.2;
+            const h = Math.sin((x + seedX) * scale) * Math.cos((z + seedZ) * scale) * 2 + Math.sin((x + seedX) * scale * 0.5 + (z + seedZ) * scale * 0.5) * 2;
+            return Math.floor(h);
+        }
+
         for (let x = 0; x < worldSize; x++) {
             for (let z = 0; z < worldSize; z++) {
                 const wx = x - worldSize / 2;
                 const wz = z - worldSize / 2;
-                dummy.position.set(wx, 0, wz);
-                dummy.updateMatrix();
-                mesh.setMatrixAt(index++, dummy.matrix);
 
-                // Populate world data
-                world.set(getChunkKey(wx, 0, wz), true);
+                const surfaceHeight = getHeight(wx, wz);
+
+                // Generate column with thickness
+                for (let y = 0; y < terrainThickness; y++) {
+                    const wy = surfaceHeight - y;
+
+                    dummy.position.set(wx, wy, wz);
+                    dummy.updateMatrix();
+                    mesh.setMatrixAt(index++, dummy.matrix);
+
+                    // Populate world data
+                    world.set(getChunkKey(wx, wy, wz), true);
+                }
             }
         }
+        mesh.count = index; // Update actual count
         mesh.instanceMatrix.needsUpdate = true;
 
         // Controls
