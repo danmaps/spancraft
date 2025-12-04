@@ -18,9 +18,14 @@ export class World {
         return this.data.has(key);
     }
 
-    set(x, y, z) {
+    set(x, y, z, blockType = true) {
         const key = typeof x === 'string' ? x : this.getChunkKey(x, y, z);
-        this.data.set(key, true);
+        this.data.set(key, blockType);
+    }
+
+    get(x, y, z) {
+        const key = typeof x === 'string' ? x : this.getChunkKey(x, y, z);
+        return this.data.get(key);
     }
 
     delete(x, y, z) {
@@ -62,7 +67,7 @@ export class World {
                     dummy.updateMatrix();
                     mesh.setMatrixAt(index++, dummy.matrix);
 
-                    this.set(wx, wy, wz);
+                    this.set(wx, wy, wz, 'dirt');
                 }
             }
         }
@@ -103,7 +108,7 @@ export class World {
             // Create pole (5 blocks high, starting at surface)
             for (let i = 0; i < poleHeight; i++) {
                 const wy = surfaceHeight + i;
-                this.set(wx, wy, wz);
+                this.set(wx, wy, wz, 'metal-pole');
             }
 
             poles.push({ x: wx, y: surfaceHeight, z: wz, height: poleHeight });

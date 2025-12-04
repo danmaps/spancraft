@@ -108,19 +108,9 @@ export class Minimap {
         const playerScreenX = (playerPos.x + halfWorld) * this.scale + halfCell;
         const playerScreenZ = (playerPos.z + halfWorld) * this.scale + halfCell;
         
-        // Convert Three.js rotation.y to compass heading
-        // Three.js: rotation.y = 0 points down -Z (north on minimap)
-        // rotation.y increases counter-clockwise (left turn)
-        // We want: 0° = up (north), 90° = right (east), 180° = down (south), 270° = left (west)
-        const heading = -playerRotation; // Negate because Three.js counter-clockwise is our clockwise
-        
-        // Determine compass direction for logging
-        let direction = 'NORTH (up)';
-        if (heading > Math.PI / 4 && heading <= 3 * Math.PI / 4) direction = 'EAST (right)';
-        else if (heading > 3 * Math.PI / 4 || heading <= -3 * Math.PI / 4) direction = 'SOUTH (down)';
-        else if (heading > -3 * Math.PI / 4 && heading <= -Math.PI / 4) direction = 'WEST (left)';
-        
-        // console.log(`Player rotation.y: ${playerRotation.toFixed(2)}, Heading: ${heading.toFixed(2)}, Direction: ${direction}`);
+        // playerRotation comes from atan2(direction.x, -direction.z) in main.js
+        // This gives us the correct heading where 0 = north, PI/2 = east, PI = south, -PI/2 = west
+        const heading = playerRotation;
         
         const coneLength = 18;
         const coneWidth = 0.5; // Cone spread angle in radians (~28 degrees each side)

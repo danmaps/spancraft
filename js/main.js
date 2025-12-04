@@ -9,8 +9,9 @@ import { Player } from './player.js';
 import { UI } from './ui.js';
 import { exportSceneToMsgpack, importSceneFromMsgpack } from './storage.js';
 import { Minimap } from './minimap.js';
+import { ChallengeMode } from './challengeMode.js';
 
-let scene, camera, renderer, controls, world, player, ui, blockMaterials, geometries, minimap;
+let scene, camera, renderer, controls, world, player, ui, blockMaterials, geometries, minimap, challengeMode;
 let conductorFromPole = null;
 let conductorFromObject = null;
 let conductors = [];
@@ -118,11 +119,78 @@ async function init() {
     // Initialize minimap
     minimap = new Minimap(world, world.worldSize);
 
+    // Initialize Challenge Mode
+    challengeMode = new ChallengeMode(scene, world, blockMaterials, geometries);
+    
+    // Setup Challenge Mode button
+    const challengeBtn = document.getElementById('challenge-btn');
+    if (challengeBtn) {
+        challengeBtn.addEventListener('click', () => {
+            if (!challengeMode.isActive) {
+                startChallengeMode();
+            }
+        });
+    }
+
     // Interaction
     setupInteraction();
 
     // Start animation loop
     animate();
+}
+
+function startChallengeMode() {
+    // Clear existing terrain and structures
+    objects.forEach(obj => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+            if (Array.isArray(obj.material)) {
+                obj.material.forEach(m => m.dispose());
+            } else {
+                obj.material.dispose();
+            }
+        }
+        scene.remove(obj);
+    });
+    objects.length = 0;
+    conductors.length = 0;
+    world.clear();
+    
+    // Generate new terrain
+    const terrainMesh = world.generateTerrain(blockMaterials.dirt);
+    terrainMesh.userData.isInstancedMesh = true;
+    scene.add(terrainMesh);
+    objects.push(terrainMesh);
+    
+    // Start challenge
+    challengeMode.start(objects);
+    
+    // Show challenge UI
+    const challengeUI = document.getElementById('challenge-mode-ui');
+    if (!challengeUI) {
+        const ui = document.createElement('div');
+        ui.id = 'challenge-mode-ui';
+        ui.style.cssText = `
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #00FF00;
+            padding: 15px 25px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 100;
+            text-align: center;
+        `;
+        document.body.appendChild(ui);
+    } else {
+        challengeUI.style.display = 'block';
+    }
+    
+    challengeMode.updateUI();
 }
 
 function setupInteraction() {
@@ -227,12 +295,21 @@ function setupInteraction() {
                                 objects.push(tube);
                                 conductors.push(conductorData);
 
+                                // Record cost in challenge mode
+                                if (challengeMode.isActive) {
+                                    challengeMode.recordConductorPlace();
+                                }
+
                                 conductorFromPole = null;
                                 conductorFromObject = null;
                                 wireIndicator.textContent = 'Select FROM pole';
                             }
                         }
                         return;
+                    }
+                    // Check budget in challenge mode
+                    if (challengeMode.isActive && !challengeMode.canPlace()) {
+                        return; // Can't place - over budget
                     }
 
                     // Place block
@@ -279,15 +356,25 @@ function setupInteraction() {
                         objects.push(hitbox);
                         voxel.userData.hitbox = hitbox;
                         
+                        // Record cost in challenge mode
+                        if (challengeMode.isActive) {
+                            challengeMode.recordBlockPlace();
+                        }
+                        
                         // console.log('--- Pole Block Created ---');
                         // console.log('voxelPos:', voxelPos.clone());
                         // console.log('pole mesh position:', voxel.position.clone());
                         // console.log('hitbox position:', hitbox.position.clone());
+                    } else {
+                        // Regular block - record cost in challenge mode
+                        if (challengeMode.isActive) {
+                            challengeMode.recordBlockPlace();
+                        }
                     }
 
                     scene.add(voxel);
                     objects.push(voxel);
-                    world.set(Math.round(voxelPos.x), Math.round(voxelPos.y), Math.round(voxelPos.z));
+                    world.set(Math.round(voxelPos.x), Math.round(voxelPos.y), Math.round(voxelPos.z), blockType);
                 }
             }
         }
@@ -313,7 +400,38 @@ function animate() {
             conductor.hasCollision = hasCollision;
             updateConductorVisuals(conductor);
         }
+        
+        // Check if conductor is attached to battery block (outside challenge mode)
+        if (!challengeMode.isActive) {
+            const fromBelowY = Math.round(fromPos.y) - 1;
+            const toBelowY = Math.round(toPos.y) - 1;
+            
+            const fromOnBattery = world.get(
+                Math.round(fromPos.x),
+                fromBelowY,
+                Math.round(fromPos.z)
+            ) === 'battery';
+            
+            const toOnBattery = world.get(
+                Math.round(toPos.x),
+                toBelowY,
+                Math.round(toPos.z)
+            ) === 'battery';
+            
+            if (fromOnBattery || toOnBattery) {
+                conductor.material.emissive.setHex(0xFFFF00);
+                conductor.material.emissiveIntensity = 0.5;
+            } else {
+                conductor.material.emissive.setHex(0x000000);
+                conductor.material.emissiveIntensity = 0;
+            }
+        }
     });
+
+    // Check challenge mode power status
+    if (challengeMode.isActive) {
+        challengeMode.checkPowered(conductors, world);
+    }
 
     // Raycasting
     ui.updateRaycasting(camera, objects, highlightMesh);

@@ -59,13 +59,13 @@ export function createBlockMaterials({ textureSide, textureTop, textureBottom })
             new THREE.MeshLambertMaterial({ color: 0xB22222 }),
             new THREE.MeshLambertMaterial({ color: 0xB22222 })
         ],
-        grass: [
-            new THREE.MeshLambertMaterial({ map: textureSide }),
-            new THREE.MeshLambertMaterial({ map: textureSide }),
-            new THREE.MeshLambertMaterial({ color: 0x7CFC00 }),
-            new THREE.MeshLambertMaterial({ map: textureBottom }),
-            new THREE.MeshLambertMaterial({ map: textureSide }),
-            new THREE.MeshLambertMaterial({ map: textureSide })
+        battery: [
+            new THREE.MeshStandardMaterial({ color: 0x00AA00, emissive: 0x00FF00, emissiveIntensity: 0.3 }),
+            new THREE.MeshStandardMaterial({ color: 0x00AA00, emissive: 0x00FF00, emissiveIntensity: 0.3 }),
+            new THREE.MeshStandardMaterial({ color: 0x00FF00, emissive: 0x00FF00, emissiveIntensity: 0.5 }),
+            new THREE.MeshStandardMaterial({ color: 0x00AA00, emissive: 0x00FF00, emissiveIntensity: 0.3 }),
+            new THREE.MeshStandardMaterial({ color: 0x00AA00, emissive: 0x00FF00, emissiveIntensity: 0.3 }),
+            new THREE.MeshStandardMaterial({ color: 0x00AA00, emissive: 0x00FF00, emissiveIntensity: 0.3 })
         ],
         pole: [
             new THREE.MeshLambertMaterial({ color: 0x8B7355 }),
@@ -99,7 +99,7 @@ export const BLOCK_TYPES = {
     WOOD: 'wood',
     COBBLESTONE: 'cobblestone',
     BRICK: 'brick',
-    GRASS: 'grass',
+    BATTERY: 'battery',
     POLE: 'pole',
     METAL_POLE: 'metal-pole',
     CONDUCTOR: 'conductor'

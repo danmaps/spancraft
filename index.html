@@ -172,8 +172,9 @@
             background: linear-gradient(135deg, #B22222 0%, #8B0000 100%);
         }
 
-        .block-option[data-type="grass"] {
-            background: linear-gradient(135deg, #7CFC00 0%, #228B22 100%);
+        .block-option[data-type="battery"] {
+            background: linear-gradient(135deg, #00FF00 0%, #00AA00 100%);
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
         }
 
         .block-option[data-type="pole"] {
@@ -286,7 +287,7 @@
         <div class="block-option" data-type="wood" title="Wood Planks"></div>
         <div class="block-option" data-type="cobblestone" title="Cobblestone"></div>
         <div class="block-option" data-type="brick" title="Brick"></div>
-        <div class="block-option" data-type="grass" title="Grass Block"></div>
+        <div class="block-option" data-type="battery" title="Battery Block">🔋</div>
         <div class="block-option" data-type="pole" title="Wood Pole"></div>
         <div class="block-option" data-type="metal-pole" title="Metal Pole"></div>
         <div class="block-option" data-type="conductor" title="Conductor Wire">⚡</div>
@@ -308,6 +309,7 @@
     <div id="ui-bar">
         <button class="ui-button" id="export-btn">Export Scene</button>
         <button class="ui-button" id="import-btn">Import Scene</button>
+        <button class="ui-button" id="challenge-btn">⚔️ Challenge Mode</button>
         <input id="import-input" type="file" accept=".msgpack,application/octet-stream" style="display:none;" />
     </div>
     <script type="module">
