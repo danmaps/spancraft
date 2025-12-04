@@ -1,26 +1,42 @@
+import * as THREE from 'three';
 import { Packr } from 'msgpackr';
 
 const packr = new Packr();
 
 export function exportSceneToMsgpack(scene, world, objects, conductors) {
     const blocks = [];
+    const polePositions = new Set();
+    
+    // First, collect all pole positions
+    objects.forEach(obj => {
+        if (obj.userData && obj.userData.isPole) {
+            polePositions.add(`${obj.position.x},${obj.position.y},${obj.position.z}`);
+        }
+    });
+    
     world.data.forEach((v, key) => {
         if (v) {
             const [x, y, z] = key.split(',').map(Number);
+            
+            // Skip if this position is a pole
+            if (polePositions.has(`${x},${y},${z}`)) {
+                return;
+            }
+            
+            // Try to find a mesh object to get its block type
             const meshObj = objects.find(obj =>
                 obj.position &&
                 obj.position.x === x &&
                 obj.position.y === y &&
                 obj.position.z === z &&
                 obj.userData &&
-                !obj.userData.isPole &&
                 !obj.userData.isPoleHitbox &&
-                !obj.userData.isConductor
+                !obj.userData.isConductor &&
+                !obj.userData.isInstancedMesh
             );
 
-            if (!meshObj || !meshObj.userData.isPole) {
-                blocks.push({ x, y, z, type: meshObj?.userData?.blockType || 'dirt' });
-            }
+            // Export the block (either with its specific type or default to dirt for terrain)
+            blocks.push({ x, y, z, type: meshObj?.userData?.blockType || 'dirt' });
         }
     });
 
@@ -56,17 +72,28 @@ export function exportSceneToMsgpack(scene, world, objects, conductors) {
 export function importSceneFromMsgpack(arrayBuffer, scene, world, objects, conductors, blockMaterials, geometries, createConductorFn) {
     const unpacked = packr.unpack(new Uint8Array(arrayBuffer));
 
-    // Clear objects
+    // Clear ALL objects including terrain
     for (let i = objects.length - 1; i >= 0; i--) {
         const obj = objects[i];
-        if (obj.userData && !obj.userData.isInstancedMesh) {
-            scene.remove(obj);
-            objects.splice(i, 1);
+        scene.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+            if (Array.isArray(obj.material)) {
+                obj.material.forEach(m => m.dispose());
+            } else {
+                obj.material.dispose();
+            }
         }
     }
+    objects.length = 0;
 
     conductors.length = 0;
     world.clear();
+
+    console.log('Importing scene...');
+    console.log('Blocks to import:', unpacked.blocks?.length || 0);
+    console.log('Poles to import:', unpacked.poles?.length || 0);
+    console.log('Wires to import:', unpacked.wires?.length || 0);
 
     if (unpacked.blocks) {
         unpacked.blocks.forEach(b => {
@@ -79,6 +106,8 @@ export function importSceneFromMsgpack(arrayBuffer, scene, world, objects, condu
             objects.push(voxel);
             world.set(Math.round(b.x), Math.round(b.y), Math.round(b.z));
         });
+        console.log('Blocks imported:', unpacked.blocks.length);
+        console.log('World data size:', world.data.size);
     }
 
     if (unpacked.poles) {
@@ -124,11 +153,18 @@ export function importSceneFromMsgpack(arrayBuffer, scene, world, objects, condu
             );
 
             if (fromPole && toPole) {
-                const { tube, conductorData } = createConductorFn(fromPole, toPole, fromPole.position, toPole.position);
+                const fromPos = fromPole.position.clone();
+                fromPos.y -= 1;
+                const toPos = toPole.position.clone();
+                toPos.y -= 1;
+                const { tube, conductorData } = createConductorFn(fromPole, toPole, fromPos, toPos);
                 scene.add(tube);
                 objects.push(tube);
                 conductors.push(conductorData);
             }
         });
     }
+    
+    console.log('Import complete');
+    return true;
 }

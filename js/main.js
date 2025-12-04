@@ -32,36 +32,43 @@ async function init() {
 
     // World generation
     world = new World(40, 3);
-    const terrainMesh = world.generateTerrain(blockMaterials.dirt);
-    terrainMesh.userData.isInstancedMesh = true;
-    scene.add(terrainMesh);
-    objects.push(terrainMesh);
+    let hasImportedScene = false;
+    
+    // Only generate terrain if not importing
+    if (!hasImportedScene) {
+        const terrainMesh = world.generateTerrain(blockMaterials.dirt);
+        terrainMesh.userData.isInstancedMesh = true;
+        scene.add(terrainMesh);
+        objects.push(terrainMesh);
+    }
 
-    // Generate random tall poles
-    const randomPoles = world.generateRandomPoles(5, 5);
-    randomPoles.forEach(pole => {
-        for (let i = 0; i < pole.height; i++) {
-            const poleBlock = new THREE.Mesh(geometries.pole, blockMaterials['metal-pole']);
-            poleBlock.position.set(pole.x, pole.y + i, pole.z);
-            poleBlock.castShadow = true;
-            poleBlock.receiveShadow = true;
-            poleBlock.userData.isPole = true;
-            poleBlock.userData.poleType = 'metal-pole';
+    // Generate random tall poles only if not importing
+    if (!hasImportedScene) {
+        const randomPoles = world.generateRandomPoles(5, 5);
+        randomPoles.forEach(pole => {
+            for (let i = 0; i < pole.height; i++) {
+                const poleBlock = new THREE.Mesh(geometries.pole, blockMaterials['metal-pole']);
+                poleBlock.position.set(pole.x, pole.y + i, pole.z);
+                poleBlock.castShadow = true;
+                poleBlock.receiveShadow = true;
+                poleBlock.userData.isPole = true;
+                poleBlock.userData.poleType = 'metal-pole';
 
-            const hitboxGeometry = new THREE.BoxGeometry(1, 1, 1);
-            const hitboxMaterial = new THREE.MeshBasicMaterial({ visible: false, transparent: true, opacity: 0 });
-            const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
-            hitbox.position.set(pole.x, pole.y + i, pole.z);
-            hitbox.userData.isPoleHitbox = true;
-            hitbox.userData.parentPole = poleBlock;
+                const hitboxGeometry = new THREE.BoxGeometry(1, 1, 1);
+                const hitboxMaterial = new THREE.MeshBasicMaterial({ visible: false, transparent: true, opacity: 0 });
+                const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
+                hitbox.position.set(pole.x, pole.y + i, pole.z);
+                hitbox.userData.isPoleHitbox = true;
+                hitbox.userData.parentPole = poleBlock;
 
-            scene.add(hitbox);
-            objects.push(hitbox);
-            poleBlock.userData.hitbox = hitbox;
-            scene.add(poleBlock);
-            objects.push(poleBlock);
-        }
-    });
+                scene.add(hitbox);
+                objects.push(hitbox);
+                poleBlock.userData.hitbox = hitbox;
+                scene.add(poleBlock);
+                objects.push(poleBlock);
+            }
+        });
+    }
 
     // Player and controls
     controls = new PointerLockControls(camera, document.body);
@@ -84,7 +91,15 @@ async function init() {
     // Setup export/import
     ui.setupExportImport(
         () => exportSceneToMsgpack(scene, world, objects, conductors),
-        (arrayBuffer) => importSceneFromMsgpack(arrayBuffer, scene, world, objects, conductors, blockMaterials, geometries, createConductor)
+        (arrayBuffer) => {
+            const imported = importSceneFromMsgpack(arrayBuffer, scene, world, objects, conductors, blockMaterials, geometries, createConductor);
+            if (imported) {
+                hasImportedScene = true;
+                // Teleport player to safe spawn position above world center
+                controls.getObject().position.set(0, 50, 0);
+                player.velocity.set(0, 0, 0);
+            }
+        }
     );
 
     // Interaction
