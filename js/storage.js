@@ -154,9 +154,7 @@ export function importSceneFromMsgpack(arrayBuffer, scene, world, objects, condu
 
             if (fromPole && toPole) {
                 const fromPos = fromPole.position.clone();
-                fromPos.y -= 1;
                 const toPos = toPole.position.clone();
-                toPos.y -= 1;
                 const { tube, conductorData } = createConductorFn(fromPole, toPole, fromPos, toPos);
                 scene.add(tube);
                 objects.push(tube);

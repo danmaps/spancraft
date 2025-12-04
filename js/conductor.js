@@ -1,25 +1,26 @@
 import * as THREE from 'three';
 
 export function calculateCatenaryCurve(fromPos, toPos, numPoints = 50) {
-    const dx = toPos.x - fromPos.x;
-    const dy = toPos.y - fromPos.y;
-    const dz = toPos.z - fromPos.z;
-    const horizontalDistance = Math.sqrt(dx * dx + dz * dz);
-
-    const sag = horizontalDistance * 0.1;
-    const a = solveCatenaryParameter(horizontalDistance, sag);
-
     const points = [];
-    const direction = new THREE.Vector3(dx, 0, dz).normalize();
-
+    
     for (let i = 0; i <= numPoints; i++) {
         const t = i / numPoints;
-        const x = t * horizontalDistance - horizontalDistance / 2;
-        const catenaryY = a * (Math.cosh(x / a) - 1);
-        const alongSpan = direction.clone().multiplyScalar(t * horizontalDistance);
-        const point = fromPos.clone().add(alongSpan);
-        point.y += dy * t + catenaryY;
-        points.push(point);
+        
+        // Linear interpolation between endpoints
+        const x = fromPos.x + (toPos.x - fromPos.x) * t;
+        const y = fromPos.y + (toPos.y - fromPos.y) * t;
+        const z = fromPos.z + (toPos.z - fromPos.z) * t;
+        
+        // Calculate sag using parabola (max at center, 0 at ends)
+        // t goes from 0 to 1, so t*(1-t) is max at t=0.5
+        const horizontalDistance = Math.sqrt(
+            Math.pow(toPos.x - fromPos.x, 2) + 
+            Math.pow(toPos.z - fromPos.z, 2)
+        );
+        const sagAmount = horizontalDistance * 0.1; // 10% of span
+        const sag = 4 * sagAmount * t * (1 - t); // Parabolic sag, max in middle
+        
+        points.push(new THREE.Vector3(x, y - sag, z));
     }
 
     return points;

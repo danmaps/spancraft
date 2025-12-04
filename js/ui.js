@@ -39,6 +39,27 @@ export class UI {
                 }
             }
         });
+
+        document.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const currentIndex = Array.from(blockOptions).findIndex(opt => opt.classList.contains('selected'));
+            let newIndex;
+            
+            if (e.deltaY < 0) {
+                // Scroll up - previous block
+                newIndex = currentIndex > 0 ? currentIndex - 1 : blockOptions.length - 1;
+            } else {
+                // Scroll down - next block
+                newIndex = currentIndex < blockOptions.length - 1 ? currentIndex + 1 : 0;
+            }
+            
+            blockOptions.forEach(opt => opt.classList.remove('selected'));
+            blockOptions[newIndex].classList.add('selected');
+            this.selectedBlockType = blockOptions[newIndex].dataset.type;
+            if (this.onBlockSelected) {
+                this.onBlockSelected(this.selectedBlockType);
+            }
+        }, { passive: false });
     }
 
     getHighlightMesh() {

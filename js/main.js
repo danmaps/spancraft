@@ -11,6 +11,7 @@ import { exportSceneToMsgpack, importSceneFromMsgpack } from './storage.js';
 
 let scene, camera, renderer, controls, world, player, ui, blockMaterials, geometries;
 let conductorFromPole = null;
+let conductorFromObject = null;
 let conductors = [];
 let objects = [];
 let highlightMesh;
@@ -81,6 +82,7 @@ async function init() {
     ui.onBlockSelected = (blockType) => {
         if (blockType !== BLOCK_TYPES.CONDUCTOR) {
             conductorFromPole = null;
+            conductorFromObject = null;
             document.getElementById('wire-mode-indicator').style.display = 'none';
         }
     };
@@ -168,31 +170,41 @@ function setupInteraction() {
                     // Conductor mode
                     if (ui.selectedBlockType === BLOCK_TYPES.CONDUCTOR) {
                         let clickedPole = null;
+                        let clickedObject = null;
                         if (intersect.object.userData.isPoleHitbox) {
                             clickedPole = intersect.object.userData.parentPole;
+                            clickedObject = intersect.object; // Use hitbox for position
                         } else if (intersect.object.userData.isPole) {
                             clickedPole = intersect.object;
+                            clickedObject = intersect.object.userData.hitbox || intersect.object;
                         }
 
                         if (clickedPole) {
                             const wireIndicator = document.getElementById('wire-mode-indicator');
                             if (!conductorFromPole) {
                                 conductorFromPole = clickedPole;
+                                conductorFromObject = clickedObject;
                                 wireIndicator.textContent = 'Select TO pole';
                                 wireIndicator.style.display = 'block';
                             } else {
-                                // Get attachment points - offset down by 1 block
-                                const fromPos = conductorFromPole.position.clone();
-                                fromPos.y -= 1;
-                                const toPos = clickedPole.position.clone();
-                                toPos.y -= 1;
+                                // Debug: Log all relevant positions
+                                console.log('--- Conductor Creation Debug ---');
+                                console.log('FROM - clickedObject (hitbox) position:', conductorFromObject.position.clone());
+                                console.log('FROM - parentPole position:', conductorFromPole.position.clone());
+                                console.log('TO - clickedObject (hitbox) position:', clickedObject.position.clone());
+                                console.log('TO - parentPole position:', clickedPole.position.clone());
                                 
-                                console.log('Conductor from position:', fromPos);
-                                console.log('Conductor to position:', toPos);
+                                // Get attachment points - exact center of clicked block
+                                const fromPos = conductorFromObject.position.clone();
+                                const toPos = clickedObject.position.clone();
+                                
+                                console.log('Final fromPos:', fromPos);
+                                console.log('Final toPos:', toPos);
 
                                 if (fromPos.x === toPos.x && fromPos.z === toPos.z) {
                                     wireIndicator.textContent = 'Cannot connect same pole! Select FROM pole';
                                     conductorFromPole = null;
+                                    conductorFromObject = null;
                                     return;
                                 }
 
@@ -202,6 +214,7 @@ function setupInteraction() {
                                 conductors.push(conductorData);
 
                                 conductorFromPole = null;
+                                conductorFromObject = null;
                                 wireIndicator.textContent = 'Select FROM pole';
                             }
                         }
@@ -251,6 +264,11 @@ function setupInteraction() {
                         scene.add(hitbox);
                         objects.push(hitbox);
                         voxel.userData.hitbox = hitbox;
+                        
+                        console.log('--- Pole Block Created ---');
+                        console.log('voxelPos:', voxelPos.clone());
+                        console.log('pole mesh position:', voxel.position.clone());
+                        console.log('hitbox position:', hitbox.position.clone());
                     }
 
                     scene.add(voxel);
@@ -272,12 +290,7 @@ function animate() {
 
     // Update conductors
     conductors.forEach(conductor => {
-        // Update attachment positions - offset down by 1 block
-        conductor.fromPos.copy(conductor.from.position);
-        conductor.fromPos.y -= 1;
-        conductor.toPos.copy(conductor.to.position);
-        conductor.toPos.y -= 1;
-        
+        // Use stored attachment positions (already correct from creation)
         const fromPos = conductor.fromPos;
         const toPos = conductor.toPos;
         const hasCollision = checkConductorCollision(fromPos, toPos, world);
