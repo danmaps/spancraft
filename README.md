@@ -21,7 +21,13 @@ A Minecraft-inspired voxel world builder with power line engineering tools, buil
   - Single-block height - stack vertically to build tall structures
   - Thin profile (0.3 blocks wide) for realistic appearance
   - Place and remove like regular blocks
-- Coming soon: Conductor wires with catenary physics
+- **Conductor Wire System** (key 9) - Realistic power line spans with true catenary physics
+  - Click on first pole, then click on second pole to create wire connection
+  - Wires exhibit natural catenary sag (hyperbolic cosine curve)
+  - Sag amount automatically calculated at 10% of horizontal span length
+  - Physics-based curve uses Newton-Raphson solver for tension parameter
+  - Red glow indicates clearance violation (wire intersecting terrain/poles)
+  - Walkable wires - player passes through conductor without collision
 
 
 ## Controls
@@ -34,9 +40,9 @@ A Minecraft-inspired voxel world builder with power line engineering tools, buil
 - **F** - Toggle flying mode
 
 ### Building
-- **Left Click** - Remove block/pole
-- **Right Click** - Place block/pole
-- **1-8 Keys** - Select block type
+- **Left Click** - Remove block/pole/wire
+- **Right Click** - Place block/pole or select pole for wiring
+- **1-9 Keys** - Select block type
   - 1: Dirt
   - 2: Stone
   - 3: Wood Planks
@@ -45,6 +51,7 @@ A Minecraft-inspired voxel world builder with power line engineering tools, buil
   - 6: Grass Block
   - 7: Wood Pole
   - 8: Metal Pole
+  - 9: Conductor Wire
 
 ### Utility Poles
 - **Press 7** for wood poles, **Press 8** for metal poles
@@ -52,6 +59,14 @@ A Minecraft-inspired voxel world builder with power line engineering tools, buil
 - Stack poles vertically by placing on top of each other
 - Left-click to remove individual pole blocks
 - Thin profile (0.3 blocks) for realistic appearance
+
+### Conductor Wires
+- **Press 9** to select conductor wire mode
+- **Right-click first pole** to start wire connection
+- **Right-click second pole** to complete connection
+- Wire automatically forms realistic catenary curve between poles
+- Red glow warns of clearance violations
+- Left-click wire to remove connection
 
 ## How to Run
 
