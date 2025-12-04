@@ -400,37 +400,89 @@ function animate() {
             conductor.hasCollision = hasCollision;
             updateConductorVisuals(conductor);
         }
-        
-        // Check if conductor is attached to battery block (outside challenge mode)
-        if (!challengeMode.isActive) {
-            const fromBelowY = Math.round(fromPos.y) - 1;
-            const toBelowY = Math.round(toPos.y) - 1;
-            
-            const fromOnBattery = world.get(
-                Math.round(fromPos.x),
-                fromBelowY,
-                Math.round(fromPos.z)
-            ) === 'battery';
-            
-            const toOnBattery = world.get(
-                Math.round(toPos.x),
-                toBelowY,
-                Math.round(toPos.z)
-            ) === 'battery';
-            
-            if (fromOnBattery || toOnBattery) {
-                conductor.material.emissive.setHex(0xFFFF00);
-                conductor.material.emissiveIntensity = 0.5;
+    });
+
+    // Calculate pulsing intensity for powered conductors
+    const pulseSpeed = 2.0;
+    const pulseIntensity = 0.3 + Math.sin(time * 0.001 * pulseSpeed) * 0.2;
+
+    // Calculate powered circuit (outside challenge mode or in challenge mode)
+    if (challengeMode.isActive) {
+        challengeMode.checkPowered(conductors, world);
+        // Apply pulsing to powered conductors in challenge mode
+        conductors.forEach(conductor => {
+            if (conductor.userData.isPowered) {
+                conductor.material.emissiveIntensity = pulseIntensity;
             } else {
                 conductor.material.emissive.setHex(0x000000);
                 conductor.material.emissiveIntensity = 0;
             }
-        }
-    });
+        });
+    } else {
+        // Find all power sources (poles on battery blocks)
+        const powerSources = new Set();
+        conductors.forEach(conductor => {
+            const fromBelowY = Math.round(conductor.fromPos.y) - 1;
+            const toBelowY = Math.round(conductor.toPos.y) - 1;
+            
+            const fromOnBattery = world.get(
+                Math.round(conductor.fromPos.x),
+                fromBelowY,
+                Math.round(conductor.fromPos.z)
+            ) === 'battery';
+            
+            const toOnBattery = world.get(
+                Math.round(conductor.toPos.x),
+                toBelowY,
+                Math.round(conductor.toPos.z)
+            ) === 'battery';
+            
+            if (fromOnBattery) {
+                powerSources.add(`${Math.round(conductor.fromPos.x)},${Math.round(conductor.fromPos.y)},${Math.round(conductor.fromPos.z)}`);
+            }
+            if (toOnBattery) {
+                powerSources.add(`${Math.round(conductor.toPos.x)},${Math.round(conductor.toPos.y)},${Math.round(conductor.toPos.z)}`);
+            }
+        });
 
-    // Check challenge mode power status
-    if (challengeMode.isActive) {
-        challengeMode.checkPowered(conductors, world);
+        // Propagate power through circuit
+        const poweredPoles = new Set(powerSources);
+        const poweredConductors = new Set();
+        let changed = true;
+        
+        while (changed) {
+            changed = false;
+            conductors.forEach(conductor => {
+                const fromKey = `${Math.round(conductor.fromPos.x)},${Math.round(conductor.fromPos.y)},${Math.round(conductor.fromPos.z)}`;
+                const toKey = `${Math.round(conductor.toPos.x)},${Math.round(conductor.toPos.y)},${Math.round(conductor.toPos.z)}`;
+                
+                const fromPowered = poweredPoles.has(fromKey);
+                const toPowered = poweredPoles.has(toKey);
+                
+                if (fromPowered || toPowered) {
+                    poweredConductors.add(conductor);
+                    if (!fromPowered) {
+                        poweredPoles.add(fromKey);
+                        changed = true;
+                    }
+                    if (!toPowered) {
+                        poweredPoles.add(toKey);
+                        changed = true;
+                    }
+                }
+            });
+        }
+
+        // Apply pulsing glow to powered conductors
+        conductors.forEach(conductor => {
+            if (poweredConductors.has(conductor)) {
+                conductor.material.emissive.setHex(0xFFFF00);
+                conductor.material.emissiveIntensity = pulseIntensity;
+            } else {
+                conductor.material.emissive.setHex(0x000000);
+                conductor.material.emissiveIntensity = 0;
+            }
+        });
     }
 
     // Raycasting
