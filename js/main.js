@@ -8,8 +8,9 @@ import { calculateCatenaryCurve, createConductor, checkConductorCollision, updat
 import { Player } from './player.js';
 import { UI } from './ui.js';
 import { exportSceneToMsgpack, importSceneFromMsgpack } from './storage.js';
+import { Minimap } from './minimap.js';
 
-let scene, camera, renderer, controls, world, player, ui, blockMaterials, geometries;
+let scene, camera, renderer, controls, world, player, ui, blockMaterials, geometries, minimap;
 let conductorFromPole = null;
 let conductorFromObject = null;
 let conductors = [];
@@ -43,6 +44,12 @@ async function init() {
         objects.push(terrainMesh);
     }
 
+    // Calculate safe spawn position above terrain at world center
+    const spawnX = 0;
+    const spawnZ = 0;
+    const terrainHeight = world.getHeight(spawnX, spawnZ);
+    const safeSpawnY = terrainHeight + 3; // Spawn 3 blocks above terrain surface
+
     // Generate random tall poles only if not importing
     if (!hasImportedScene) {
         const randomPoles = world.generateRandomPoles(5, 5);
@@ -74,6 +81,10 @@ async function init() {
     // Player and controls
     controls = new PointerLockControls(camera, document.body);
     scene.add(controls.getObject());
+    
+    // Set player spawn position above terrain
+    controls.getObject().position.set(spawnX, safeSpawnY, spawnZ);
+    
     player = new Player(controls);
     player.setupControls();
 
@@ -103,6 +114,9 @@ async function init() {
             }
         }
     );
+
+    // Initialize minimap
+    minimap = new Minimap(world, world.worldSize);
 
     // Interaction
     setupInteraction();
@@ -188,18 +202,18 @@ function setupInteraction() {
                                 wireIndicator.style.display = 'block';
                             } else {
                                 // Debug: Log all relevant positions
-                                console.log('--- Conductor Creation Debug ---');
-                                console.log('FROM - clickedObject (hitbox) position:', conductorFromObject.position.clone());
-                                console.log('FROM - parentPole position:', conductorFromPole.position.clone());
-                                console.log('TO - clickedObject (hitbox) position:', clickedObject.position.clone());
-                                console.log('TO - parentPole position:', clickedPole.position.clone());
+                                // console.log('--- Conductor Creation Debug ---');
+                                // console.log('FROM - clickedObject (hitbox) position:', conductorFromObject.position.clone());
+                                // console.log('FROM - parentPole position:', conductorFromPole.position.clone());
+                                // console.log('TO - clickedObject (hitbox) position:', clickedObject.position.clone());
+                                // console.log('TO - parentPole position:', clickedPole.position.clone());
                                 
                                 // Get attachment points - exact center of clicked block
                                 const fromPos = conductorFromObject.position.clone();
                                 const toPos = clickedObject.position.clone();
                                 
-                                console.log('Final fromPos:', fromPos);
-                                console.log('Final toPos:', toPos);
+                                // console.log('Final fromPos:', fromPos);
+                                // console.log('Final toPos:', toPos);
 
                                 if (fromPos.x === toPos.x && fromPos.z === toPos.z) {
                                     wireIndicator.textContent = 'Cannot connect same pole! Select FROM pole';
@@ -265,10 +279,10 @@ function setupInteraction() {
                         objects.push(hitbox);
                         voxel.userData.hitbox = hitbox;
                         
-                        console.log('--- Pole Block Created ---');
-                        console.log('voxelPos:', voxelPos.clone());
-                        console.log('pole mesh position:', voxel.position.clone());
-                        console.log('hitbox position:', hitbox.position.clone());
+                        // console.log('--- Pole Block Created ---');
+                        // console.log('voxelPos:', voxelPos.clone());
+                        // console.log('pole mesh position:', voxel.position.clone());
+                        // console.log('hitbox position:', hitbox.position.clone());
                     }
 
                     scene.add(voxel);
@@ -303,6 +317,14 @@ function animate() {
 
     // Raycasting
     ui.updateRaycasting(camera, objects, highlightMesh);
+
+    // Update minimap
+    const playerPos = controls.getObject().position;
+    // Get camera direction to calculate yaw (horizontal rotation)
+    const direction = new THREE.Vector3();
+    camera.getWorldDirection(direction);
+    const playerRotation = Math.atan2(direction.x, -direction.z); // atan2(sin, cos) for yaw
+    minimap.update(playerPos, playerRotation, objects, conductors);
 
     player.prevTime = time;
     renderer.render(scene, camera);

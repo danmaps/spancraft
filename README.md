@@ -2,6 +2,8 @@
 
 A Minecraft-inspired voxel world builder with power line engineering tools, built with Three.js.
 
+**[Play Spancraft on GitHub Pages](https://danmaps.github.io/spancraft/)**
+
 ## Features
 
 ### Building & Exploration
@@ -42,26 +44,17 @@ A Minecraft-inspired voxel world builder with power line engineering tools, buil
 ### Building
 - **Left Click** - Remove block/pole/wire
 - **Right Click** - Place block/pole or select pole for wiring
-- **1-9 Keys** - Select block type
-  - 1: Dirt
-  - 2: Stone
-  - 3: Wood Planks
-  - 4: Cobblestone
-  - 5: Brick
-  - 6: Grass Block
-  - 7: Wood Pole
-  - 8: Metal Pole
-  - 9: Conductor Wire
+- **Scroll Wheel** - Select block type
 
 ### Utility Poles
-- **Press 7** for wood poles, **Press 8** for metal poles
+- Scroll to select wood poles or metal poles
 - Right-click to place pole blocks (single block height)
 - Stack poles vertically by placing on top of each other
 - Left-click to remove individual pole blocks
 - Thin profile (0.3 blocks) for realistic appearance
 
 ### Conductor Wires
-- **Press 9** to select conductor wire mode
+- Scroll to select conductor wire mode
 - **Right-click first pole** to start wire connection
 - **Right-click second pole** to complete connection
 - Wire automatically forms realistic catenary curve between poles

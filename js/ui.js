@@ -25,21 +25,6 @@ export class UI {
             });
         });
 
-        document.addEventListener('keydown', (e) => {
-            const key = e.key;
-            if (key >= '1' && key <= '9') {
-                const index = parseInt(key) - 1;
-                if (blockOptions[index]) {
-                    blockOptions.forEach(opt => opt.classList.remove('selected'));
-                    blockOptions[index].classList.add('selected');
-                    this.selectedBlockType = blockOptions[index].dataset.type;
-                    if (this.onBlockSelected) {
-                        this.onBlockSelected(this.selectedBlockType);
-                    }
-                }
-            }
-        });
-
         document.addEventListener('wheel', (e) => {
             e.preventDefault();
             const currentIndex = Array.from(blockOptions).findIndex(opt => opt.classList.contains('selected'));
