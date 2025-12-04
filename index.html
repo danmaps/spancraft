@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minecraft Clone</title>
+    <title>Spancraft</title>
     <style>
         body {
             margin: 0;
@@ -76,6 +76,140 @@
             pointer-events: none;
             user-select: none;
         }
+
+        #fly-indicator {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #FFD700;
+            font-family: monospace;
+            font-size: 16px;
+            font-weight: bold;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 8px 16px;
+            border-radius: 5px;
+            pointer-events: none;
+            user-select: none;
+            display: none;
+        }
+
+        #block-selector {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: all;
+        }
+
+        .block-option {
+            width: 50px;
+            height: 50px;
+            border: 3px solid transparent;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: white;
+            font-family: monospace;
+            font-weight: bold;
+            text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.8);
+        }
+
+        .block-option:hover {
+            transform: scale(1.1);
+        }
+
+        .block-option.selected {
+            border-color: white;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .block-option[data-type="dirt"] {
+            background: linear-gradient(135deg, #8B4513 0%, #654321 100%);
+        }
+
+        .block-option[data-type="stone"] {
+            background: linear-gradient(135deg, #808080 0%, #606060 100%);
+        }
+
+        .block-option[data-type="wood"] {
+            background: linear-gradient(135deg, #DEB887 0%, #8B7355 100%);
+        }
+
+        .block-option[data-type="cobblestone"] {
+            background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%);
+        }
+
+        .block-option[data-type="brick"] {
+            background: linear-gradient(135deg, #B22222 0%, #8B0000 100%);
+        }
+
+        .block-option[data-type="grass"] {
+            background: linear-gradient(135deg, #7CFC00 0%, #228B22 100%);
+        }
+
+        .block-option[data-type="pole"] {
+            background: linear-gradient(135deg, #8B7355 0%, #654321 100%);
+            position: relative;
+        }
+
+        .block-option[data-type="pole"]::after {
+            content: '|';
+            font-size: 24px;
+            color: #FFF;
+            font-weight: bold;
+        }
+
+        .block-option[data-type="metal-pole"] {
+            background: linear-gradient(135deg, #B0B0B0 0%, #707070 100%);
+            position: relative;
+        }
+
+        .block-option[data-type="metal-pole"]::after {
+            content: '|';
+            font-size: 24px;
+            color: #FFF;
+            font-weight: bold;
+            text-shadow: 0 0 5px rgba(255,255,255,0.5);
+        }
+
+        .block-option[data-type="conductor"] {
+            background: linear-gradient(135deg, #2c2c2c 0%, #000000 100%);
+            position: relative;
+        }
+
+        .block-option[data-type="conductor"]::after {
+            content: '—';
+            font-size: 20px;
+            color: #FFF;
+            font-weight: bold;
+        }
+
+        #wire-mode-indicator {
+            position: absolute;
+            top: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #FFD700;
+            font-family: monospace;
+            font-size: 14px;
+            font-weight: bold;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 6px 12px;
+            border-radius: 5px;
+            pointer-events: none;
+            user-select: none;
+            display: none;
+        }
     </style>
     <!-- Three.js CDN -->
     <script type="importmap">
@@ -90,6 +224,19 @@
 
 <body>
     <div id="crosshair"></div>
+    <div id="fly-indicator">✈ FLYING MODE</div>
+    <div id="wire-mode-indicator">Select FROM pole</div>
+    <div id="block-selector">
+        <div class="block-option selected" data-type="dirt" title="Dirt">1</div>
+        <div class="block-option" data-type="stone" title="Stone">2</div>
+        <div class="block-option" data-type="wood" title="Wood Planks">3</div>
+        <div class="block-option" data-type="cobblestone" title="Cobblestone">4</div>
+        <div class="block-option" data-type="brick" title="Brick">5</div>
+        <div class="block-option" data-type="grass" title="Grass Block">6</div>
+        <div class="block-option" data-type="pole" title="Wood Pole">7</div>
+        <div class="block-option" data-type="metal-pole" title="Metal Pole">8</div>
+        <div class="block-option" data-type="conductor" title="Conductor Wire">9</div>
+    </div>
     <a id="github-link" href="https://github.com/maciekChmura/minecraft-gemini3" target="_blank" title="View Source on GitHub">
         <svg viewBox="0 0 98 96" xmlns="http://www.w3.org/2000/svg">
             <path fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z" />
@@ -97,9 +244,14 @@
     </a>
     <div id="instructions">
         WASD / Arrow Keys: Move<br>
-        Space: Jump<br>
-        Left Click: Remove Block<br>
-        Right Click: Place Block
+        Space: Jump / Fly Up<br>
+        Shift: Fly Down<br>
+        F: Toggle Flying<br>
+        Left Click: Remove Block/Wire<br>
+        Right Click: Place Block / Select Pole<br>
+        1-9: Select Block Type<br>
+        7: Wood Pole | 8: Metal Pole<br>
+        9: Conductor Wire (click pole to pole)
     </div>
     <script type="module">
         import * as THREE from 'three';
@@ -159,6 +311,77 @@
             new THREE.MeshLambertMaterial({ map: textureSide }), // Front
             new THREE.MeshLambertMaterial({ map: textureSide })  // Back
         ];
+
+        // Block type materials
+        const blockMaterials = {
+            dirt: materials,
+            stone: [
+                new THREE.MeshLambertMaterial({ color: 0x808080 }),
+                new THREE.MeshLambertMaterial({ color: 0x808080 }),
+                new THREE.MeshLambertMaterial({ color: 0x909090 }),
+                new THREE.MeshLambertMaterial({ color: 0x707070 }),
+                new THREE.MeshLambertMaterial({ color: 0x808080 }),
+                new THREE.MeshLambertMaterial({ color: 0x808080 })
+            ],
+            wood: [
+                new THREE.MeshLambertMaterial({ color: 0xDEB887 }),
+                new THREE.MeshLambertMaterial({ color: 0xDEB887 }),
+                new THREE.MeshLambertMaterial({ color: 0xF5DEB3 }),
+                new THREE.MeshLambertMaterial({ color: 0xD2B48C }),
+                new THREE.MeshLambertMaterial({ color: 0xDEB887 }),
+                new THREE.MeshLambertMaterial({ color: 0xDEB887 })
+            ],
+            cobblestone: [
+                new THREE.MeshLambertMaterial({ color: 0x6B7280 }),
+                new THREE.MeshLambertMaterial({ color: 0x6B7280 }),
+                new THREE.MeshLambertMaterial({ color: 0x7B8290 }),
+                new THREE.MeshLambertMaterial({ color: 0x5B6270 }),
+                new THREE.MeshLambertMaterial({ color: 0x6B7280 }),
+                new THREE.MeshLambertMaterial({ color: 0x6B7280 })
+            ],
+            brick: [
+                new THREE.MeshLambertMaterial({ color: 0xB22222 }),
+                new THREE.MeshLambertMaterial({ color: 0xB22222 }),
+                new THREE.MeshLambertMaterial({ color: 0xC23232 }),
+                new THREE.MeshLambertMaterial({ color: 0xA21212 }),
+                new THREE.MeshLambertMaterial({ color: 0xB22222 }),
+                new THREE.MeshLambertMaterial({ color: 0xB22222 })
+            ],
+            grass: [
+                new THREE.MeshLambertMaterial({ map: textureSide }),
+                new THREE.MeshLambertMaterial({ map: textureSide }),
+                new THREE.MeshLambertMaterial({ color: 0x7CFC00 }),
+                new THREE.MeshLambertMaterial({ map: textureBottom }),
+                new THREE.MeshLambertMaterial({ map: textureSide }),
+                new THREE.MeshLambertMaterial({ map: textureSide })
+            ],
+            pole: [
+                new THREE.MeshLambertMaterial({ color: 0x8B7355 }),
+                new THREE.MeshLambertMaterial({ color: 0x8B7355 }),
+                new THREE.MeshLambertMaterial({ color: 0x654321 }),
+                new THREE.MeshLambertMaterial({ color: 0x654321 }),
+                new THREE.MeshLambertMaterial({ color: 0x8B7355 }),
+                new THREE.MeshLambertMaterial({ color: 0x8B7355 })
+            ],
+            'metal-pole': [
+                new THREE.MeshLambertMaterial({ color: 0xB0B0B0, metalness: 0.8 }),
+                new THREE.MeshLambertMaterial({ color: 0xB0B0B0, metalness: 0.8 }),
+                new THREE.MeshLambertMaterial({ color: 0xD0D0D0, metalness: 0.8 }),
+                new THREE.MeshLambertMaterial({ color: 0x909090, metalness: 0.8 }),
+                new THREE.MeshLambertMaterial({ color: 0xB0B0B0, metalness: 0.8 }),
+                new THREE.MeshLambertMaterial({ color: 0xB0B0B0, metalness: 0.8 })
+            ]
+        };
+
+        let selectedBlockType = 'dirt';
+        
+        // Pole system - thin geometry for poles
+        const poleGeometry = new THREE.BoxGeometry(0.3, 1, 0.3);
+        
+        // Conductor system
+        const conductors = []; // Array to store conductor spans: {from, to, line}
+        let conductorFromPole = null; // Selected 'from' pole
+        const wireIndicator = document.getElementById('wire-mode-indicator');
 
         // Terrain settings
         const terrainThickness = 3;
@@ -227,9 +450,24 @@
                 case 'ArrowRight':
                 case 'KeyD': moveRight = true; break;
                 case 'Space':
-                    if (canJump) {
+                    if (isFlying) {
+                        moveUp = true;
+                    } else if (canJump) {
                         velocity.y += 12; // Jump force
                         canJump = false;
+                    }
+                    break;
+                case 'ShiftLeft':
+                case 'ShiftRight':
+                    if (isFlying) {
+                        moveDown = true;
+                    }
+                    break;
+                case 'KeyF':
+                    isFlying = !isFlying;
+                    document.getElementById('fly-indicator').style.display = isFlying ? 'block' : 'none';
+                    if (isFlying) {
+                        velocity.y = 0; // Reset vertical velocity when entering fly mode
                     }
                     break;
             }
@@ -245,18 +483,59 @@
                 case 'KeyS': moveBackward = false; break;
                 case 'ArrowRight':
                 case 'KeyD': moveRight = false; break;
+                case 'Space': moveUp = false; break;
+                case 'ShiftLeft':
+                case 'ShiftRight': moveDown = false; break;
             }
         };
 
         document.addEventListener('keydown', onKeyDown);
         document.addEventListener('keyup', onKeyUp);
 
+        // Block selector UI
+        const blockOptions = document.querySelectorAll('.block-option');
+        blockOptions.forEach(option => {
+            option.addEventListener('click', (e) => {
+                blockOptions.forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+                selectedBlockType = option.dataset.type;
+                
+                // Reset conductor mode when switching away
+                if (selectedBlockType !== 'conductor') {
+                    conductorFromPole = null;
+                    wireIndicator.style.display = 'none';
+                }
+            });
+        });
+
+        // Number key selection
+        document.addEventListener('keydown', (e) => {
+            const key = e.key;
+            if (key >= '1' && key <= '9') {
+                const index = parseInt(key) - 1;
+                if (blockOptions[index]) {
+                    blockOptions.forEach(opt => opt.classList.remove('selected'));
+                    blockOptions[index].classList.add('selected');
+                    selectedBlockType = blockOptions[index].dataset.type;
+                    
+                    // Reset conductor mode when switching away
+                    if (selectedBlockType !== 'conductor') {
+                        conductorFromPole = null;
+                        wireIndicator.style.display = 'none';
+                    }
+                }
+            }
+        });
+
         // Physics variables
         let moveForward = false;
         let moveBackward = false;
         let moveLeft = false;
         let moveRight = false;
+        let moveUp = false;
+        let moveDown = false;
         let canJump = false;
+        let isFlying = false;
 
         const velocity = new THREE.Vector3();
         const direction = new THREE.Vector3();
@@ -288,6 +567,18 @@
                         const intersect = intersects[0];
                         const instanceId = intersect.instanceId;
 
+                        // Check if clicking on a conductor line
+                        if (intersect.object.userData.isConductor) {
+                            const conductorData = intersect.object.userData.conductorData;
+                            const condIndex = conductors.indexOf(conductorData);
+                            if (condIndex > -1) {
+                                conductors.splice(condIndex, 1);
+                            }
+                            scene.remove(intersect.object);
+                            objects.splice(objects.indexOf(intersect.object), 1);
+                            return;
+                        }
+
                         let blockPos;
                         if (instanceId !== undefined) {
                             const matrix = new THREE.Matrix4();
@@ -299,16 +590,102 @@
                             mesh.instanceMatrix.needsUpdate = true;
                         } else {
                             blockPos = intersect.object.position.clone();
+                            
+                            // If clicking on pole hitbox, remove the actual pole too
+                            if (intersect.object.userData.isPoleHitbox) {
+                                const pole = intersect.object.userData.parentPole;
+                                scene.remove(pole);
+                                objects.splice(objects.indexOf(pole), 1);
+                            }
+                            // If clicking on pole, remove its hitbox too
+                            else if (intersect.object.userData.isPole && intersect.object.userData.hitbox) {
+                                const hitbox = intersect.object.userData.hitbox;
+                                scene.remove(hitbox);
+                                objects.splice(objects.indexOf(hitbox), 1);
+                            }
+                            
                             scene.remove(intersect.object);
                             objects.splice(objects.indexOf(intersect.object), 1);
                         }
 
                         world.delete(getChunkKey(Math.round(blockPos.x), Math.round(blockPos.y), Math.round(blockPos.z)));
                     }
-                } else if (event.button === 2) { // Right click: Place
+                } else if (event.button === 2) { // Right click: Place or Select Pole
                     const intersects = raycaster.intersectObjects(objects);
                     if (intersects.length > 0) {
                         const intersect = intersects[0];
+
+                        // Conductor mode: select poles to connect
+                        if (selectedBlockType === 'conductor') {
+                            // Get the actual pole (not hitbox)
+                            let clickedPole = null;
+                            if (intersect.object.userData.isPoleHitbox) {
+                                clickedPole = intersect.object.userData.parentPole;
+                            } else if (intersect.object.userData.isPole) {
+                                clickedPole = intersect.object;
+                            }
+
+                            if (clickedPole) {
+                                if (!conductorFromPole) {
+                                    // First click: select FROM pole
+                                    conductorFromPole = clickedPole;
+                                    wireIndicator.textContent = 'Select TO pole';
+                                    wireIndicator.style.display = 'block';
+                                } else {
+                                    // Second click: select TO pole and create conductor
+                                    const fromPos = conductorFromPole.position;
+                                    const toPos = clickedPole.position;
+                                    
+                                    // Check if poles are in different x,z locations
+                                    if (fromPos.x === toPos.x && fromPos.z === toPos.z) {
+                                        // Same pole column, cancel
+                                        wireIndicator.textContent = 'Cannot connect same pole! Select FROM pole';
+                                        conductorFromPole = null;
+                                        return;
+                                    }
+                                    
+                                    // Create conductor line (1/8 block = 0.125)
+                                    const points = [fromPos.clone(), toPos.clone()];
+                                    const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+                                    const lineMaterial = new THREE.LineBasicMaterial({ 
+                                        color: 0x1a1a1a,
+                                        linewidth: 3
+                                    });
+                                    const line = new THREE.Line(lineGeometry, lineMaterial);
+                                    line.userData.isConductor = true;
+                                    
+                                    // Also create a thin tube for easier clicking
+                                    const curve = new THREE.LineCurve3(fromPos.clone(), toPos.clone());
+                                    const tubeGeometry = new THREE.TubeGeometry(curve, 1, 0.0625, 8, false);
+                                    const tubeMaterial = new THREE.MeshLambertMaterial({ 
+                                        color: 0x1a1a1a,
+                                        emissive: 0x000000
+                                    });
+                                    const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
+                                    tube.castShadow = true;
+                                    
+                                    const conductorData = { 
+                                        from: conductorFromPole, 
+                                        to: clickedPole, 
+                                        line, 
+                                        tube,
+                                        material: tubeMaterial,
+                                        hasCollision: false
+                                    };
+                                    tube.userData.isConductor = true;
+                                    tube.userData.conductorData = conductorData;
+                                    
+                                    scene.add(tube);
+                                    objects.push(tube);
+                                    conductors.push(conductorData);
+                                    
+                                    // Reset for next conductor
+                                    conductorFromPole = null;
+                                    wireIndicator.textContent = 'Select FROM pole';
+                                }
+                            }
+                            return; // Don't place blocks in conductor mode
+                        }
 
                         // Fix: Use Math.round to find integer center, NOT floor + 0.5
                         const voxelPos = intersect.point.clone().add(intersect.face.normal.clone().multiplyScalar(0.5));
@@ -328,13 +705,38 @@
                             }
                         }
 
-                        const voxel = new THREE.Mesh(geometry, materials);
+                        // Determine geometry based on block type
+                        const isPole = (selectedBlockType === 'pole' || selectedBlockType === 'metal-pole');
+                        const useGeometry = isPole ? poleGeometry : geometry;
+                        
+                        const voxel = new THREE.Mesh(useGeometry, blockMaterials[selectedBlockType]);
                         voxel.position.copy(voxelPos);
                         voxel.castShadow = true;
                         voxel.receiveShadow = true;
+                        
+                        // For poles, add invisible collision box for easier clicking/stacking
+                        if (isPole) {
+                            voxel.userData.isPole = true;
+                            voxel.userData.poleType = selectedBlockType;
+                            
+                            // Create invisible full-size hitbox
+                            const hitboxGeometry = new THREE.BoxGeometry(1, 1, 1);
+                            const hitboxMaterial = new THREE.MeshBasicMaterial({ 
+                                visible: false,
+                                transparent: true,
+                                opacity: 0
+                            });
+                            const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
+                            hitbox.position.copy(voxelPos);
+                            hitbox.userData.isPoleHitbox = true;
+                            hitbox.userData.parentPole = voxel;
+                            scene.add(hitbox);
+                            objects.push(hitbox);
+                            voxel.userData.hitbox = hitbox;
+                        }
+                        
                         scene.add(voxel);
                         objects.push(voxel);
-
                         world.set(getChunkKey(Math.round(voxelPos.x), Math.round(voxelPos.y), Math.round(voxelPos.z)), true);
                     }
                 }
@@ -360,7 +762,14 @@
                 // Friction
                 velocity.x -= velocity.x * 10.0 * delta;
                 velocity.z -= velocity.z * 10.0 * delta;
-                velocity.y -= 30.0 * delta; // Gravity
+                
+                if (isFlying) {
+                    // Flying mode: no gravity, vertical friction
+                    velocity.y -= velocity.y * 10.0 * delta;
+                } else {
+                    // Normal mode: gravity
+                    velocity.y -= 30.0 * delta;
+                }
 
                 // Get camera direction
                 const forward = new THREE.Vector3();
@@ -380,9 +789,16 @@
                 inputVector.normalize();
 
                 // Apply movement force
+                const flySpeedMultiplier = isFlying ? 1.5 : 1.0; // Faster when flying
                 if (moveForward || moveBackward || moveLeft || moveRight) {
-                    velocity.x += inputVector.x * 100.0 * delta;
-                    velocity.z += inputVector.z * 100.0 * delta;
+                    velocity.x += inputVector.x * 100.0 * delta * flySpeedMultiplier;
+                    velocity.z += inputVector.z * 100.0 * delta * flySpeedMultiplier;
+                }
+                
+                // Vertical movement in flying mode
+                if (isFlying) {
+                    if (moveUp) velocity.y += 100.0 * delta;
+                    if (moveDown) velocity.y -= 100.0 * delta;
                 }
 
                 // Collision Detection
@@ -406,20 +822,22 @@
                 // 3. Apply Y movement
                 playerObj.position.y += velocity.y * delta;
 
-                // Ground/Ceiling Check
-                if (velocity.y < 0) {
-                    if (checkVerticalCollision(playerObj.position, true)) {
-                        velocity.y = 0;
-                        canJump = true;
-                        const feetY = playerObj.position.y - 1.5;
-                        const blockY = Math.round(feetY);
-                        playerObj.position.y = blockY + 0.5 + 1.5;
+                // Ground/Ceiling Check (only when not flying)
+                if (!isFlying) {
+                    if (velocity.y < 0) {
+                        if (checkVerticalCollision(playerObj.position, true)) {
+                            velocity.y = 0;
+                            canJump = true;
+                            const feetY = playerObj.position.y - 1.5;
+                            const blockY = Math.round(feetY);
+                            playerObj.position.y = blockY + 0.5 + 1.5;
+                        }
                     }
-                }
-                else if (velocity.y > 0) {
-                    if (checkVerticalCollision(playerObj.position, false)) {
-                        velocity.y = 0;
-                        playerObj.position.y = Math.floor(playerObj.position.y + 0.1) - 0.1 - 0.1;
+                    else if (velocity.y > 0) {
+                        if (checkVerticalCollision(playerObj.position, false)) {
+                            velocity.y = 0;
+                            playerObj.position.y = Math.floor(playerObj.position.y + 0.1) - 0.1 - 0.1;
+                        }
                     }
                 }
 
@@ -427,6 +845,28 @@
                     velocity.y = 0;
                     playerObj.position.set(0, 10, 0);
                 }
+
+                // Check conductor collisions and update visual feedback
+                conductors.forEach(conductor => {
+                    const fromPos = conductor.from.position;
+                    const toPos = conductor.to.position;
+                    const hasCollision = checkConductorCollision(fromPos, toPos, conductor.from, conductor.to);
+                    
+                    if (hasCollision !== conductor.hasCollision) {
+                        conductor.hasCollision = hasCollision;
+                        if (hasCollision) {
+                            // Red glow for collision
+                            conductor.material.color.setHex(0xff0000);
+                            conductor.material.emissive.setHex(0xff0000);
+                            conductor.material.emissiveIntensity = 0.5;
+                        } else {
+                            // Normal black color
+                            conductor.material.color.setHex(0x1a1a1a);
+                            conductor.material.emissive.setHex(0x000000);
+                            conductor.material.emissiveIntensity = 0;
+                        }
+                    }
+                });
 
                 // Raycasting
                 raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
@@ -509,6 +949,35 @@
                 if (checkCollision(p)) return true;
             }
             return false;
+        }
+
+        function checkConductorCollision(fromPos, toPos, fromPole, toPole) {
+            // Sample points along the conductor line
+            const steps = 20;
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const point = new THREE.Vector3().lerpVectors(fromPos, toPos, t);
+                
+                const x = Math.round(point.x);
+                const y = Math.round(point.y);
+                const z = Math.round(point.z);
+                
+                // Check if this point intersects a block in the world
+                if (world.has(getChunkKey(x, y, z))) {
+                    // Check if it's not one of the endpoint poles
+                    const isFromPole = (x === Math.round(fromPos.x) && 
+                                       y === Math.round(fromPos.y) && 
+                                       z === Math.round(fromPos.z));
+                    const isToPole = (x === Math.round(toPos.x) && 
+                                     y === Math.round(toPos.y) && 
+                                     z === Math.round(toPos.z));
+                    
+                    if (!isFromPole && !isToPole) {
+                        return true; // Collision detected
+                    }
+                }
+            }
+            return false; // No collision
         }
 
         animate();
