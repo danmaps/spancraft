@@ -79,8 +79,20 @@ export class UI {
         const importBtn = document.getElementById('import-btn');
         const importInput = document.getElementById('import-input');
 
-        exportBtn.onclick = exportFn;
-        importBtn.onclick = () => importInput.click();
+        exportBtn.onclick = () => {
+            // Release pointer lock if active
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
+            exportFn();
+        };
+        importBtn.onclick = () => {
+            // Release pointer lock if active
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
+            importInput.click();
+        };
         importInput.onchange = (e) => {
             const file = e.target.files[0];
             if (!file) return;

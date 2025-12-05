@@ -57,6 +57,21 @@ export function createConductor(fromPole, toPole, fromPos, toPos) {
     const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
     tube.castShadow = true;
 
+    // Create spark particle for traveling effect
+    const sparkGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+    const sparkMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0
+    });
+    const spark = new THREE.Mesh(sparkGeometry, sparkMaterial);
+    spark.visible = false;
+
+    // Create point light for spark
+    const sparkLight = new THREE.PointLight(0x00ffff, 2, 8);
+    sparkLight.visible = false;
+    spark.add(sparkLight);
+
     const conductorData = {
         from: fromPole,
         to: toPole,
@@ -65,13 +80,19 @@ export function createConductor(fromPole, toPole, fromPos, toPos) {
         tube,
         material: tubeMaterial,
         hasCollision: false,
-        isPowered: false
+        isPowered: false,
+        curve,
+        spark,
+        sparkMaterial,
+        sparkLight,
+        sparkProgress: 0,
+        sparkSpeed: 0.4 + Math.random() * 0.3 // Randomize speed slightly
     };
 
     tube.userData.isConductor = true;
     tube.userData.conductorData = conductorData;
 
-    return { tube, conductorData };
+    return { tube, conductorData, spark };
 }
 
 export function checkConductorCollision(fromPos, toPos, world) {
@@ -104,5 +125,45 @@ export function updateConductorVisuals(conductor) {
         conductor.material.color.setHex(0x1a1a1a);
         conductor.material.emissive.setHex(0x000000);
         conductor.material.emissiveIntensity = 0;
+    }
+}
+
+export function updateSparkEffect(conductor, deltaTime) {
+    if (!conductor.isPowered || conductor.hasCollision) {
+        // Hide spark if not powered or has collision
+        conductor.spark.visible = false;
+        conductor.sparkLight.visible = false;
+        return;
+    }
+
+    // Show and animate spark
+    conductor.spark.visible = true;
+    conductor.sparkLight.visible = true;
+
+    // Update progress along curve
+    conductor.sparkProgress += deltaTime * conductor.sparkSpeed;
+    if (conductor.sparkProgress > 1) {
+        conductor.sparkProgress = 0;
+    }
+
+    // Get position along curve
+    const position = conductor.curve.getPoint(conductor.sparkProgress);
+    conductor.spark.position.copy(position);
+
+    // Pulsing glow effect
+    const pulse = 0.7 + Math.sin(conductor.sparkProgress * Math.PI * 4) * 0.3;
+    conductor.sparkMaterial.opacity = pulse;
+    conductor.sparkLight.intensity = 2 + pulse * 1.5;
+
+    // Add trail effect with emissive on wire
+    const trailLength = 0.15;
+    const distanceFromSpark = Math.abs(conductor.sparkProgress - 0.5);
+    if (distanceFromSpark < trailLength) {
+        const trailIntensity = (1 - distanceFromSpark / trailLength) * 0.3;
+        conductor.material.emissive.setHex(0x0088ff);
+        conductor.material.emissiveIntensity = trailIntensity;
+    } else {
+        conductor.material.emissive.setHex(0x0044ff);
+        conductor.material.emissiveIntensity = 0.1;
     }
 }

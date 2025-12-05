@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { checkConductorCollision } from './conductor.js';
 
 export class ChallengeMode {
     constructor(scene, world, blockMaterials, geometries, controls = null) {
@@ -50,8 +51,8 @@ export class ChallengeMode {
         // Green substation - 2x2x2 blocks (matching voxel system)
         // Base corner at integer coordinates
         const baseX = -16;
-        const baseY = 0;
         const baseZ = -16;
+        const baseY = this.world.getHeight(baseX, baseZ); // Place on ground surface
         
         // Create 2x2x2 cube building from individual voxel blocks
         const buildingMat = new THREE.MeshStandardMaterial({ 
@@ -76,6 +77,7 @@ export class ChallengeMode {
                     block.receiveShadow = true;
                     block.userData.isBuilding = true;
                     block.userData.buildingType = 'substation';
+                    block.userData.blockType = 'substation';
                     this.scene.add(block);
                     objects.push(block);
                     blocks.push(block);
@@ -115,8 +117,8 @@ export class ChallengeMode {
         // Blue customer - 2x2x2 blocks (matching voxel system)
         // Base corner at integer coordinates
         const baseX = 15;
-        const baseY = 0;
         const baseZ = 15;
+        const baseY = this.world.getHeight(baseX, baseZ); // Place on ground surface
         
         // Create 2x2x2 cube building from individual voxel blocks
         const buildingMat = new THREE.MeshStandardMaterial({ 
@@ -141,6 +143,7 @@ export class ChallengeMode {
                     block.receiveShadow = true;
                     block.userData.isBuilding = true;
                     block.userData.buildingType = 'customer';
+                    block.userData.blockType = 'customer';
                     this.scene.add(block);
                     objects.push(block);
                     blocks.push(block);
@@ -437,9 +440,24 @@ export class ChallengeMode {
         return this.isUnderBudget();
     }
 
+    hasCollidingConductors(conductors) {
+        for (let conductor of conductors) {
+            if (checkConductorCollision(conductor.fromPos, conductor.toPos, this.world)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     finishChallenge() {
         this.completed = true;
         this.stars = this.calculateStars();
+        
+        // Release mouse control
+        if (this.controls && this.controls.isLocked) {
+            document.exitPointerLock();
+        }
+        
         this.showCompletionScreen();
     }
 

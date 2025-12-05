@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 export class Player {
-    constructor(controls) {
+    constructor(controls, moveSpeed = 20) {
         this.controls = controls;
         this.velocity = new THREE.Vector3();
         this.moveForward = false;
@@ -14,11 +14,19 @@ export class Player {
         this.isFlying = false;
         this.playerHeight = 1.8;
         this.playerWidth = 0.6;
+        this.moveSpeed = moveSpeed;
         this.prevTime = performance.now();
     }
 
     setupControls() {
-        document.addEventListener('click', () => this.controls.lock());
+        document.addEventListener('click', () => {
+            // Don't lock pointer if settings modal is visible
+            const settingsModal = document.getElementById('settings-modal');
+            if (settingsModal && settingsModal.style.display === 'block') {
+                return;
+            }
+            this.controls.lock();
+        });
 
         document.addEventListener('keydown', (e) => this.onKeyDown(e));
         document.addEventListener('keyup', (e) => this.onKeyUp(e));
@@ -130,13 +138,13 @@ export class Player {
 
         const flySpeedMultiplier = this.isFlying ? 1.5 : 1.0;
         if (this.moveForward || this.moveBackward || this.moveLeft || this.moveRight) {
-            this.velocity.x += inputVector.x * 100.0 * delta * flySpeedMultiplier;
-            this.velocity.z += inputVector.z * 100.0 * delta * flySpeedMultiplier;
+            this.velocity.x += inputVector.x * this.moveSpeed * 5.0 * delta * flySpeedMultiplier;
+            this.velocity.z += inputVector.z * this.moveSpeed * 5.0 * delta * flySpeedMultiplier;
         }
 
         if (this.isFlying) {
-            if (this.moveUp) this.velocity.y += 100.0 * delta;
-            if (this.moveDown) this.velocity.y -= 100.0 * delta;
+            if (this.moveUp) this.velocity.y += this.moveSpeed * 5.0 * delta;
+            if (this.moveDown) this.velocity.y -= this.moveSpeed * 5.0 * delta;
         }
 
         // Collision detection

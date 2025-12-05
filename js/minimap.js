@@ -1,10 +1,12 @@
 export class Minimap {
-    constructor(world, worldSize) {
+    constructor(world, worldSizeX, worldSizeZ) {
         this.world = world;
-        this.worldSize = worldSize;
+        this.worldSizeX = worldSizeX;
+        this.worldSizeZ = worldSizeZ;
+        this.worldSize = Math.max(worldSizeX, worldSizeZ); // Use larger dimension for scaling
         this.canvas = document.getElementById('minimap-canvas');
         this.ctx = this.canvas.getContext('2d');
-        this.scale = this.canvas.width / worldSize;
+        this.scale = this.canvas.width / this.worldSize;
         
         // Block type colors
         this.blockColors = {
@@ -16,7 +18,9 @@ export class Minimap {
             'grass': '#4CAF50',
             'metal-pole': '#2F4F4F',
             'wood-pole': '#8B4513',
-            'pole': '#8B4513'
+            'pole': '#8B4513',
+            'substation': '#00DD00',  // Bright green for substation
+            'customer': '#0088FF'     // Bright blue for customer
         };
         
         this.defaultColor = '#4CAF50'; // Green for terrain

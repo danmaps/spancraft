@@ -4,14 +4,17 @@ import { PointerLockControls } from 'three/addons/controls/PointerLockControls.j
 import { createScene, createCamera, createRenderer, setupLighting, onWindowResize } from './scene.js';
 import { loadTextures, createBlockMaterials, getBlockGeometry, BLOCK_TYPES, isPoleType } from './blocks.js';
 import { World, createHighlightMesh } from './world.js';
-import { calculateCatenaryCurve, createConductor, checkConductorCollision, updateConductorVisuals } from './conductor.js';
+import { calculateCatenaryCurve, createConductor, checkConductorCollision, updateConductorVisuals, updateSparkEffect } from './conductor.js';
 import { Player } from './player.js';
 import { UI } from './ui.js';
 import { exportSceneToMsgpack, importSceneFromMsgpack } from './storage.js';
 import { Minimap } from './minimap.js';
 import { ChallengeMode } from './challengeMode.js';
+import { ActionHistory } from './actionHistory.js';
+import { Settings, initSettingsUI } from './settings.js';
 
 let scene, camera, renderer, controls, world, player, ui, blockMaterials, geometries, minimap, challengeMode;
+let actionHistory, settings;
 let conductorFromPole = null;
 let conductorFromObject = null;
 let conductors = [];
@@ -19,11 +22,18 @@ let objects = [];
 let highlightMesh;
 
 async function init() {
+    // Load settings
+    settings = new Settings();
+    const config = settings.getAll();
+
     // Scene setup
     scene = createScene();
     camera = createCamera();
     renderer = createRenderer();
     onWindowResize(camera, renderer);
+
+    // Apply fog settings
+    scene.fog = new THREE.Fog(0x87CEEB, 10, config.renderDistance);
 
     // Lighting
     setupLighting(scene);
@@ -33,8 +43,8 @@ async function init() {
     blockMaterials = createBlockMaterials(textures);
     geometries = getBlockGeometry();
 
-    // World generation
-    world = new World(40, 3);
+    // World generation with settings
+    world = new World(config.worldSizeX, config.worldSizeZ, config.terrainThickness, config.randomTerrain);
     let hasImportedScene = false;
     
     // Only generate terrain if not importing
@@ -79,6 +89,9 @@ async function init() {
         });
     }
 
+    // Initialize Action History
+    actionHistory = new ActionHistory();
+
     // Player and controls
     controls = new PointerLockControls(camera, document.body);
     scene.add(controls.getObject());
@@ -86,7 +99,7 @@ async function init() {
     // Set player spawn position above terrain
     controls.getObject().position.set(spawnX, safeSpawnY, spawnZ);
     
-    player = new Player(controls);
+    player = new Player(controls, config.movementSpeed);
     player.setupControls();
 
     // UI
@@ -117,15 +130,19 @@ async function init() {
     );
 
     // Initialize minimap
-    minimap = new Minimap(world, world.worldSize);
+    minimap = new Minimap(world, world.worldSizeX, world.worldSizeZ);
 
     // Initialize Challenge Mode
-    challengeMode = new ChallengeMode(scene, world, blockMaterials, geometries);
+    challengeMode = new ChallengeMode(scene, world, blockMaterials, geometries, controls);
     
     // Setup Challenge Mode button
     const challengeBtn = document.getElementById('challenge-btn');
     if (challengeBtn) {
         challengeBtn.addEventListener('click', () => {
+            // Release pointer lock if active
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
             if (!challengeMode.isActive) {
                 startChallengeMode();
             }
@@ -152,12 +169,47 @@ async function init() {
     const minimapDiv = document.getElementById('minimap');
     if (minimapToggle) {
         minimapToggle.addEventListener('click', () => {
+            // Release pointer lock if active
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
             minimapDiv.classList.toggle('visible');
         });
     }
 
+    // Setup undo/redo keyboard shortcuts
+    document.addEventListener('keydown', (event) => {
+        // Only handle undo/redo if not typing in an input
+        if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+            return;
+        }
+
+        if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
+            event.preventDefault();
+            const action = actionHistory.undo();
+            if (action) {
+                executeUndo(action);
+            }
+        } else if ((event.ctrlKey || event.metaKey) && event.key === 'y') {
+            event.preventDefault();
+            const action = actionHistory.redo();
+            if (action) {
+                executeRedo(action);
+            }
+        }
+    });
+
     // Interaction
     setupInteraction();
+
+    // Initialize Settings UI
+    initSettingsUI(settings, (newSettings) => {
+        // Apply settings that don't require reload
+        player.moveSpeed = newSettings.movementSpeed;
+        scene.fog.far = newSettings.renderDistance;
+        
+        console.log('Settings applied:', newSettings);
+    });
 
     // Start animation loop
     animate();
@@ -233,11 +285,23 @@ function setupInteraction() {
                         const conductorData = intersect.object.userData.conductorData;
                         const condIndex = conductors.indexOf(conductorData);
                         if (condIndex > -1) {
+                            // Record action in history
+                            actionHistory.recordAction({
+                                type: 'conductor-remove',
+                                fromPos: conductorData.fromPos.clone(),
+                                toPos: conductorData.toPos.clone()
+                            });
+                            
                             // Record cost refund in challenge mode
                             if (challengeMode.isActive) {
                                 challengeMode.recordConductorRemove(conductorData.fromPos, conductorData.toPos);
                             }
                             conductors.splice(condIndex, 1);
+                            
+                            // Remove spark
+                            if (conductorData.spark) {
+                                scene.remove(conductorData.spark);
+                            }
                         }
                         scene.remove(intersect.object);
                         objects.splice(objects.indexOf(intersect.object), 1);
@@ -245,16 +309,19 @@ function setupInteraction() {
                     }
 
                     let blockPos;
+                    let removedBlockType;
                     if (instanceId !== undefined) {
                         const matrix = new THREE.Matrix4();
                         intersect.object.getMatrixAt(instanceId, matrix);
                         blockPos = new THREE.Vector3().setFromMatrixPosition(matrix);
+                        removedBlockType = intersect.object.userData.blockType;
 
                         matrix.scale(new THREE.Vector3(0, 0, 0));
                         intersect.object.setMatrixAt(instanceId, matrix);
                         intersect.object.instanceMatrix.needsUpdate = true;
                     } else {
                         blockPos = intersect.object.position.clone();
+                        removedBlockType = intersect.object.userData.blockType;
 
                         if (intersect.object.userData.isPoleHitbox) {
                             const pole = intersect.object.userData.parentPole;
@@ -269,6 +336,13 @@ function setupInteraction() {
                         scene.remove(intersect.object);
                         objects.splice(objects.indexOf(intersect.object), 1);
                     }
+
+                    // Record action in history
+                    actionHistory.recordAction({
+                        type: 'block-remove',
+                        blockType: removedBlockType,
+                        position: blockPos.clone()
+                    });
 
                     // Record cost refund in challenge mode
                     if (challengeMode.isActive) {
@@ -323,10 +397,30 @@ function setupInteraction() {
                                     return;
                                 }
 
-                                const { tube, conductorData } = createConductor(conductorFromPole, clickedPole, fromPos, toPos);
+                                // Check for collisions
+                                if (checkConductorCollision(fromPos, toPos, world)) {
+                                    wireIndicator.textContent = 'Cannot place wire - collision detected!';
+                                    wireIndicator.style.color = '#ff0000';
+                                    conductorFromPole = null;
+                                    conductorFromObject = null;
+                                    setTimeout(() => {
+                                        wireIndicator.style.color = '#ffff00';
+                                    }, 2000);
+                                    return;
+                                }
+
+                                const { tube, conductorData, spark } = createConductor(conductorFromPole, clickedPole, fromPos, toPos);
                                 scene.add(tube);
+                                scene.add(spark);
                                 objects.push(tube);
                                 conductors.push(conductorData);
+
+                                // Record action in history
+                                actionHistory.recordAction({
+                                    type: 'conductor-place',
+                                    fromPos: fromPos.clone(),
+                                    toPos: toPos.clone()
+                                });
 
                                 // Record cost in challenge mode
                                 if (challengeMode.isActive) {
@@ -389,6 +483,13 @@ function setupInteraction() {
                         objects.push(hitbox);
                         voxel.userData.hitbox = hitbox;
                         
+                        // Record action in history
+                        actionHistory.recordAction({
+                            type: 'block-place',
+                            blockType: blockType,
+                            position: voxelPos.clone()
+                        });
+                        
                         // Record cost in challenge mode
                         if (challengeMode.isActive) {
                             challengeMode.recordBlockPlace(voxelPos);
@@ -399,7 +500,14 @@ function setupInteraction() {
                         // console.log('pole mesh position:', voxel.position.clone());
                         // console.log('hitbox position:', hitbox.position.clone());
                     } else {
-                        // Regular block - record cost in challenge mode
+                        // Regular block - record action in history
+                        actionHistory.recordAction({
+                            type: 'block-place',
+                            blockType: blockType,
+                            position: voxelPos.clone()
+                        });
+                        
+                        // Record cost in challenge mode
                         if (challengeMode.isActive) {
                             challengeMode.recordBlockPlace(voxelPos);
                         }
@@ -435,26 +543,39 @@ function animate() {
         }
     });
 
-    // Calculate pulsing intensity for powered conductors
-    const pulseSpeed = 2.0;
-    const pulseIntensity = 0.3 + Math.sin(time * 0.001 * pulseSpeed) * 0.2;
-
     // Calculate powered circuit (outside challenge mode or in challenge mode)
     if (challengeMode.isActive) {
         challengeMode.checkPowered(conductors, world);
-        // Apply pulsing to powered conductors in challenge mode
+        // Apply visual feedback to conductors in challenge mode
         conductors.forEach(conductor => {
-            if (conductor.isPowered) {
-                conductor.material.emissiveIntensity = pulseIntensity;
+            // Check for collisions first (red takes priority)
+            const hasCollision = checkConductorCollision(conductor.fromPos, conductor.toPos, world);
+            conductor.hasCollision = hasCollision;
+            
+            if (hasCollision) {
+                conductor.material.color.setHex(0xff0000);
+                conductor.material.emissive.setHex(0xff0000);
+                conductor.material.emissiveIntensity = 0.5;
+                conductor.spark.visible = false;
+                conductor.sparkLight.visible = false;
+            } else if (conductor.isPowered) {
+                // Use spark effect for powered conductors
+                updateSparkEffect(conductor, delta * 1000);
             } else {
+                conductor.material.color.setHex(0x1a1a1a);
                 conductor.material.emissive.setHex(0x000000);
                 conductor.material.emissiveIntensity = 0;
+                conductor.spark.visible = false;
+                conductor.sparkLight.visible = false;
             }
         });
         
-        // Check if challenge is complete (powered + under or near budget)
+        // Check if challenge is complete (powered + no collisions)
         if (challengeMode.isPowered && !challengeMode.completed) {
-            challengeMode.finishChallenge();
+            // Check for conductor collisions before completing
+            if (!challengeMode.hasCollidingConductors(conductors)) {
+                challengeMode.finishChallenge();
+            }
         }
     } else {
         // Find all power sources (poles on battery blocks)
@@ -536,6 +657,245 @@ function animate() {
 
     player.prevTime = time;
     renderer.render(scene, camera);
+}
+
+function executeUndo(action) {
+    if (!action) return;
+    
+    console.log(`[UNDO] Reversing action:`, action);
+    
+    if (action.type === 'block-place') {
+        const { x, y, z } = action.position;
+        const roundedPos = new THREE.Vector3(Math.round(x), Math.round(y), Math.round(z));
+        
+        // Find and remove the block from scene
+        const objectToRemove = objects.find(obj => {
+            if (obj.position.equals(roundedPos)) {
+                return true;
+            }
+            return false;
+        });
+        
+        if (objectToRemove) {
+            // Remove associated hitbox if it's a pole
+            if (objectToRemove.userData.hitbox) {
+                scene.remove(objectToRemove.userData.hitbox);
+                objects.splice(objects.indexOf(objectToRemove.userData.hitbox), 1);
+            }
+            // Remove pole hitbox reference if this is a hitbox
+            if (objectToRemove.userData.isPoleHitbox) {
+                scene.remove(objectToRemove);
+                objects.splice(objects.indexOf(objectToRemove), 1);
+            } else {
+                scene.remove(objectToRemove);
+                objects.splice(objects.indexOf(objectToRemove), 1);
+            }
+        }
+        
+        world.delete(roundedPos.x, roundedPos.y, roundedPos.z);
+        console.log(`[UNDO] Removed block-place at (${roundedPos.x}, ${roundedPos.y}, ${roundedPos.z})`);
+        
+    } else if (action.type === 'block-remove') {
+        const { x, y, z } = action.position;
+        const blockType = action.blockType;
+        const roundedPos = new THREE.Vector3(Math.round(x), Math.round(y), Math.round(z));
+        
+        // Restore block
+        const useGeometry = isPoleType(blockType) ? geometries.pole : geometries.standard;
+        const voxel = new THREE.Mesh(useGeometry, blockMaterials[blockType]);
+        voxel.position.copy(roundedPos);
+        voxel.castShadow = true;
+        voxel.receiveShadow = true;
+        voxel.userData.blockType = blockType;
+        
+        if (isPoleType(blockType)) {
+            voxel.userData.isPole = true;
+            voxel.userData.poleType = blockType;
+            
+            const hitboxGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const hitboxMaterial = new THREE.MeshBasicMaterial({
+                visible: false,
+                transparent: true,
+                opacity: 0
+            });
+            const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
+            hitbox.position.copy(roundedPos);
+            hitbox.userData.isPoleHitbox = true;
+            hitbox.userData.parentPole = voxel;
+            scene.add(hitbox);
+            objects.push(hitbox);
+            voxel.userData.hitbox = hitbox;
+        }
+        
+        scene.add(voxel);
+        objects.push(voxel);
+        world.set(roundedPos.x, roundedPos.y, roundedPos.z, blockType);
+        console.log(`[UNDO] Restored block-remove ${blockType} at (${roundedPos.x}, ${roundedPos.y}, ${roundedPos.z})`);
+        
+    } else if (action.type === 'conductor-place') {
+        const fromPos = new THREE.Vector3().copy(action.fromPos);
+        const toPos = new THREE.Vector3().copy(action.toPos);
+        
+        // Find and remove conductor from scene
+        const conductorToRemove = conductors.find(cond => {
+            return cond.fromPos.equals(fromPos) && cond.toPos.equals(toPos);
+        });
+        
+        if (conductorToRemove) {
+            const condIndex = conductors.indexOf(conductorToRemove);
+            if (condIndex > -1) {
+                conductors.splice(condIndex, 1);
+            }
+            // Find the tube in scene
+            const tubeToRemove = objects.find(obj => obj.userData.isConductor && obj.userData.conductorData === conductorToRemove);
+            if (tubeToRemove) {
+                scene.remove(tubeToRemove);
+                objects.splice(objects.indexOf(tubeToRemove), 1);
+            }
+            // Remove spark
+            if (conductorToRemove.spark) {
+                scene.remove(conductorToRemove.spark);
+            }
+        }
+        
+        console.log(`[UNDO] Removed conductor-place from (${Math.round(fromPos.x)}, ${Math.round(fromPos.y)}, ${Math.round(fromPos.z)}) to (${Math.round(toPos.x)}, ${Math.round(toPos.y)}, ${Math.round(toPos.z)})`);
+        
+    } else if (action.type === 'conductor-remove') {
+        const fromPos = new THREE.Vector3().copy(action.fromPos);
+        const toPos = new THREE.Vector3().copy(action.toPos);
+        
+        // Find the poles to reconnect
+        const fromPole = objects.find(obj => obj.userData.isPole && obj.position.equals(fromPos));
+        const toPole = objects.find(obj => obj.userData.isPole && obj.position.equals(toPos));
+        
+        if (fromPole && toPole) {
+            const { tube, conductorData, spark } = createConductor(fromPole, toPole, fromPos, toPos);
+            scene.add(tube);
+            scene.add(spark);
+            objects.push(tube);
+            conductors.push(conductorData);
+            
+            console.log(`[UNDO] Restored conductor-remove from (${Math.round(fromPos.x)}, ${Math.round(fromPos.y)}, ${Math.round(fromPos.z)}) to (${Math.round(toPos.x)}, ${Math.round(toPos.y)}, ${Math.round(toPos.z)})`);
+        }
+    }
+}
+
+function executeRedo(action) {
+    if (!action) return;
+    
+    console.log(`[REDO] Reapplying action:`, action);
+    
+    if (action.type === 'block-place') {
+        const { x, y, z } = action.position;
+        const blockType = action.blockType;
+        const roundedPos = new THREE.Vector3(Math.round(x), Math.round(y), Math.round(z));
+        
+        // Re-place block
+        const useGeometry = isPoleType(blockType) ? geometries.pole : geometries.standard;
+        const voxel = new THREE.Mesh(useGeometry, blockMaterials[blockType]);
+        voxel.position.copy(roundedPos);
+        voxel.castShadow = true;
+        voxel.receiveShadow = true;
+        voxel.userData.blockType = blockType;
+        
+        if (isPoleType(blockType)) {
+            voxel.userData.isPole = true;
+            voxel.userData.poleType = blockType;
+            
+            const hitboxGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const hitboxMaterial = new THREE.MeshBasicMaterial({
+                visible: false,
+                transparent: true,
+                opacity: 0
+            });
+            const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
+            hitbox.position.copy(roundedPos);
+            hitbox.userData.isPoleHitbox = true;
+            hitbox.userData.parentPole = voxel;
+            scene.add(hitbox);
+            objects.push(hitbox);
+            voxel.userData.hitbox = hitbox;
+        }
+        
+        scene.add(voxel);
+        objects.push(voxel);
+        world.set(roundedPos.x, roundedPos.y, roundedPos.z, blockType);
+        console.log(`[REDO] Re-placed block-place ${blockType} at (${roundedPos.x}, ${roundedPos.y}, ${roundedPos.z})`);
+        
+    } else if (action.type === 'block-remove') {
+        const { x, y, z } = action.position;
+        const roundedPos = new THREE.Vector3(Math.round(x), Math.round(y), Math.round(z));
+        
+        // Find and remove the block from scene
+        const objectToRemove = objects.find(obj => {
+            if (obj.position.equals(roundedPos)) {
+                return true;
+            }
+            return false;
+        });
+        
+        if (objectToRemove) {
+            if (objectToRemove.userData.hitbox) {
+                scene.remove(objectToRemove.userData.hitbox);
+                objects.splice(objects.indexOf(objectToRemove.userData.hitbox), 1);
+            }
+            if (objectToRemove.userData.isPoleHitbox) {
+                scene.remove(objectToRemove);
+                objects.splice(objects.indexOf(objectToRemove), 1);
+            } else {
+                scene.remove(objectToRemove);
+                objects.splice(objects.indexOf(objectToRemove), 1);
+            }
+        }
+        
+        world.delete(roundedPos.x, roundedPos.y, roundedPos.z);
+        console.log(`[REDO] Re-removed block-remove at (${roundedPos.x}, ${roundedPos.y}, ${roundedPos.z})`);
+        
+    } else if (action.type === 'conductor-place') {
+        const fromPos = new THREE.Vector3().copy(action.fromPos);
+        const toPos = new THREE.Vector3().copy(action.toPos);
+        
+        // Find the poles to reconnect
+        const fromPole = objects.find(obj => obj.userData.isPole && obj.position.equals(fromPos));
+        const toPole = objects.find(obj => obj.userData.isPole && obj.position.equals(toPos));
+        
+        if (fromPole && toPole) {
+            const { tube, conductorData, spark } = createConductor(fromPole, toPole, fromPos, toPos);
+            scene.add(tube);
+            scene.add(spark);
+            objects.push(tube);
+            conductors.push(conductorData);
+            
+            console.log(`[REDO] Re-placed conductor-place from (${Math.round(fromPos.x)}, ${Math.round(fromPos.y)}, ${Math.round(fromPos.z)}) to (${Math.round(toPos.x)}, ${Math.round(toPos.y)}, ${Math.round(toPos.z)})`);
+        }
+        
+    } else if (action.type === 'conductor-remove') {
+        const fromPos = new THREE.Vector3().copy(action.fromPos);
+        const toPos = new THREE.Vector3().copy(action.toPos);
+        
+        // Find and remove conductor from scene
+        const conductorToRemove = conductors.find(cond => {
+            return cond.fromPos.equals(fromPos) && cond.toPos.equals(toPos);
+        });
+        
+        if (conductorToRemove) {
+            const condIndex = conductors.indexOf(conductorToRemove);
+            if (condIndex > -1) {
+                conductors.splice(condIndex, 1);
+            }
+            // Remove spark
+            if (conductorToRemove.spark) {
+                scene.remove(conductorToRemove.spark);
+            }
+            const tubeToRemove = objects.find(obj => obj.userData.isConductor && obj.userData.conductorData === conductorToRemove);
+            if (tubeToRemove) {
+                scene.remove(tubeToRemove);
+                objects.splice(objects.indexOf(tubeToRemove), 1);
+            }
+        }
+        
+        console.log(`[REDO] Re-removed conductor-remove from (${Math.round(fromPos.x)}, ${Math.round(fromPos.y)}, ${Math.round(fromPos.z)}) to (${Math.round(toPos.x)}, ${Math.round(toPos.y)}, ${Math.round(toPos.z)})`);
+    }
 }
 
 // Start the application

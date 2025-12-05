@@ -6,9 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Spancraft</title>
     <style>
+        * {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
         body {
             margin: 0;
             overflow: hidden;
+            font-family: 'Arial Black', monospace;
         }
 
         canvas {
@@ -38,27 +44,40 @@
             transform: translate(-50%, -50%);
         }
 
-        #minimap-toggle {
+        #minimap-toggle, #settings-toggle {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 50px;
-            height: 50px;
-            background-color: rgba(0, 0, 0, 0.7);
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            border-radius: 5px;
-            font-size: 24px;
+            width: 56px;
+            height: 56px;
+            background-color: #1a1a1a;
+            border: 4px solid #444;
+            border-radius: 0px;
+            font-size: 28px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 101;
-            transition: all 0.2s ease-in-out;
+            transition: all 0.1s ease-in-out;
+            box-shadow: inset 0 0 0 1px #000;
         }
 
-        #minimap-toggle:hover {
-            background-color: rgba(0, 0, 0, 0.9);
-            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        #minimap-toggle {
+            top: 20px;
+            right: 20px;
+        }
+
+        #settings-toggle {
+            top: 20px;
+            right: 90px;
+        }
+
+        #minimap-toggle:hover, #settings-toggle:hover {
+            background-color: #222;
+            box-shadow: inset 0 0 0 1px #666, 0 0 8px #fff4;
+        }
+
+        #minimap-toggle:active, #settings-toggle:active {
+            box-shadow: inset 0 2px 4px #000;
         }
 
         #minimap {
@@ -67,12 +86,13 @@
             right: 20px;
             width: 300px;
             height: 300px;
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            border-radius: 5px;
-            background-color: rgba(0, 0, 0, 0.5);
+            border: 4px solid #444;
+            border-radius: 0px;
+            background-color: #0a0a0a;
             z-index: 100;
             pointer-events: none;
             display: none;
+            box-shadow: inset 0 0 0 2px #222;
         }
 
         #minimap.visible {
@@ -82,7 +102,7 @@
         #minimap-canvas {
             width: 100%;
             height: 100%;
-            border-radius: 3px;
+            image-rendering: pixelated;
         }
 
         #github-link {
@@ -93,91 +113,109 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background-color: rgba(0, 0, 0, 0.5);
-            padding: 10px;
-            border-radius: 50%;
-            transition: transform 0.2s ease-in-out, background-color 0.2s;
+            background-color: #1a1a1a;
+            padding: 8px;
+            border: 3px solid #444;
+            border-radius: 0px;
+            transition: transform 0.1s ease-in-out, background-color 0.1s;
         }
 
         #github-link:hover {
-            transform: scale(1.1);
-            background-color: rgba(0, 0, 0, 0.8);
+            transform: scale(1.05);
+            background-color: #222;
+            box-shadow: 0 0 8px #fff4;
+        }
+
+        #github-link:active {
+            box-shadow: inset 0 2px 4px #000;
         }
 
         #github-link svg {
             width: 32px;
             height: 32px;
-            fill: white;
+            fill: #ccc;
         }
 
         #instructions {
             position: absolute;
-            bottom: 20px;
+            bottom: 90px;
             left: 20px;
-            color: white;
+            color: #ccc;
             font-family: monospace;
-            font-size: 14px;
-            background-color: rgba(0, 0, 0, 0.5);
-            padding: 10px;
-            border-radius: 5px;
+            font-size: 11px;
+            background-color: #0a0a0a;
+            border: 3px solid #444;
+            padding: 10px 12px;
+            border-radius: 0px;
             pointer-events: none;
             user-select: none;
+            line-height: 1.4;
+            box-shadow: inset 0 0 0 1px #222;
         }
 
         #fly-indicator {
-            position: absolute;
-            top: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #FFD700;
-            font-family: monospace;
-            font-size: 16px;
+            position: static;
+            color: #ffff00;
+            font-family: 'Arial Black', monospace;
+            font-size: 12px;
             font-weight: bold;
-            background-color: rgba(0, 0, 0, 0.7);
-            padding: 8px 16px;
-            border-radius: 5px;
+            background-color: #0a0a0a;
+            border: 3px solid #444;
+            padding: 6px 12px;
+            border-radius: 0px;
             pointer-events: none;
             user-select: none;
             display: none;
+            box-shadow: 0 0 12px #ffff00cc, inset 0 0 0 1px #222;
+            text-shadow: 2px 2px 0px #000;
         }
 
         #block-selector {
             position: absolute;
-            top: 20px;
+            bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 10px;
-            background-color: rgba(0, 0, 0, 0.7);
-            padding: 10px;
-            border-radius: 5px;
+            gap: 6px;
+            background-color: #1a1a1a;
+            border: 4px solid #444;
+            padding: 8px;
+            border-radius: 0px;
             pointer-events: all;
+            box-shadow: 0 -2px 8px #0008, inset 0 0 0 1px #222;
         }
 
         .block-option {
-            width: 50px;
-            height: 50px;
-            border: 3px solid transparent;
-            border-radius: 5px;
+            width: 36px;
+            height: 36px;
+            border: 2px solid transparent;
+            border-radius: 0px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.1s;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
+            font-size: 14px;
             color: white;
-            font-family: monospace;
+            font-family: 'Arial Black', monospace;
             font-weight: bold;
-            text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.8);
+            text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.8);
+            user-select: none;
         }
 
         .block-option:hover {
-            transform: scale(1.1);
+            transform: translate(0, -2px);
+            box-shadow: 0 4px 8px #0008;
+        }
+
+        .block-option:active {
+            transform: translate(0, 1px);
+            box-shadow: inset 0 2px 4px #000;
         }
 
         .block-option.selected {
-            border-color: white;
-            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            border-color: #ffff00;
+            box-shadow: 0 0 0 1px #ffff00, inset 0 0 0 1px #ffff0044;
         }
 
         .block-option[data-type="dirt"] {
@@ -202,7 +240,11 @@
 
         .block-option[data-type="battery"] {
             background: linear-gradient(135deg, #00FF00 0%, #00AA00 100%);
-            box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+            box-shadow: 0 0 0 1px #00AA00;
+        }
+
+        .block-option[data-type="battery"]:hover {
+            box-shadow: 0 0 8px #00ff00aa, 0 4px 8px #0008;
         }
 
         .block-option[data-type="pole"] {
@@ -211,8 +253,8 @@
         }
 
         .block-option[data-type="pole"]::after {
-            content: '|';
-            font-size: 24px;
+            content: '│';
+            font-size: 18px;
             color: #FFF;
             font-weight: bold;
         }
@@ -223,11 +265,11 @@
         }
 
         .block-option[data-type="metal-pole"]::after {
-            content: '|';
-            font-size: 24px;
+            content: '│';
+            font-size: 18px;
             color: #FFF;
             font-weight: bold;
-            text-shadow: 0 0 5px rgba(255,255,255,0.5);
+            text-shadow: 0 0 4px rgba(255,255,255,0.6);
         }
 
         .block-option[data-type="conductor"] {
@@ -237,26 +279,26 @@
 
         .block-option[data-type="conductor"]::after {
             content: '⚡';
-            font-size: 20px;
+            font-size: 16px;
             color: #FFD700;
             font-weight: bold;
         }
 
         #wire-mode-indicator {
-            position: absolute;
-            top: 120px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #FFD700;
-            font-family: monospace;
-            font-size: 14px;
+            position: static;
+            color: #ffff00;
+            font-family: 'Arial Black', monospace;
+            font-size: 12px;
             font-weight: bold;
-            background-color: rgba(0, 0, 0, 0.7);
+            background-color: #0a0a0a;
+            border: 3px solid #444;
             padding: 6px 12px;
-            border-radius: 5px;
+            border-radius: 0px;
             pointer-events: none;
             user-select: none;
             display: none;
+            box-shadow: inset 0 0 0 1px #222, 0 0 8px #ffff0055;
+            text-shadow: 1px 1px 0px #000;
         }
 
         #import-input {
@@ -270,25 +312,153 @@
             display: flex;
             flex-direction: column;
             align-items: flex-start;
-            gap: 12px;
+            gap: 10px;
             z-index: 100;
         }
 
         .ui-button {
-            background: rgba(0, 0, 0, 0.7);
-            color: #fff;
-            font-family: monospace;
-            font-size: 16px;
-            padding: 10px 22px;
-            border: none;
-            border-radius: 8px;
+            background: #1a1a1a;
+            color: #ccc;
+            font-family: 'Arial Black', monospace;
+            font-size: 13px;
+            font-weight: bold;
+            padding: 10px 18px;
+            border: 3px solid #444;
+            border-radius: 0px;
             cursor: pointer;
-            box-shadow: 0 2px 8px #0008;
-            transition: background 0.2s, transform 0.2s;
+            box-shadow: inset 0 0 0 1px #222;
+            transition: all 0.1s;
+            text-shadow: 1px 1px 0px #000;
+            user-select: none;
         }
 
         .ui-button:hover {
-            background: rgba(40, 40, 40, 0.95);
+            background: #222;
+            border-color: #666;
+            box-shadow: 0 0 8px #fff4, inset 0 0 0 1px #222;
+            transform: translate(0, -2px);
+        }
+
+        .ui-button:active {
+            box-shadow: inset 0 2px 4px #000;
+            transform: translate(0, 1px);
+        }
+
+        #settings-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        #settings-modal.visible {
+            display: flex;
+        }
+
+        #settings-content {
+            background-color: #1a1a1a;
+            border: 4px solid #444;
+            border-radius: 0px;
+            padding: 24px;
+            min-width: 400px;
+            max-width: 600px;
+            box-shadow: 0 0 20px #000, inset 0 0 0 1px #222;
+        }
+
+        #settings-content h2 {
+            margin: 0 0 20px 0;
+            color: #ffff00;
+            font-family: 'Arial Black', monospace;
+            font-size: 24px;
+            text-shadow: 2px 2px 0px #000;
+        }
+
+        .settings-group {
+            margin-bottom: 20px;
+        }
+
+        .settings-group label {
+            display: block;
+            color: #ccc;
+            font-family: 'Arial Black', monospace;
+            font-size: 12px;
+            margin-bottom: 8px;
+            text-shadow: 1px 1px 0px #000;
+        }
+
+        .settings-group input[type="number"],
+        .settings-group select {
+            width: 100%;
+            background-color: #0a0a0a;
+            border: 3px solid #444;
+            border-radius: 0px;
+            color: #fff;
+            font-family: monospace;
+            font-size: 14px;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+
+        .settings-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .settings-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        .settings-button {
+            background: #1a1a1a;
+            color: #ccc;
+            font-family: 'Arial Black', monospace;
+            font-size: 12px;
+            font-weight: bold;
+            padding: 10px 20px;
+            border: 3px solid #444;
+            border-radius: 0px;
+            cursor: pointer;
+            transition: all 0.1s;
+            text-shadow: 1px 1px 0px #000;
+        }
+
+        .settings-button:hover {
+            background: #222;
+            border-color: #666;
+            transform: translate(0, -2px);
+        }
+
+        .settings-button:active {
+            transform: translate(0, 1px);
+        }
+
+        .settings-button.primary {
+            background: #2a2a2a;
+            border-color: #ffff00;
+            color: #ffff00;
+        }
+
+        .settings-note {
+            color: #888;
+            font-size: 11px;
+            font-style: italic;
+            margin-top: 4px;
         }
     </style>
     <script type="importmap">
@@ -304,12 +474,76 @@
 
 <body>
     <div id="crosshair"></div>
+    <button id="settings-toggle" title="Settings">⚙️</button>
     <button id="minimap-toggle" title="Toggle Minimap">🗺️</button>
     <div id="minimap">
         <canvas id="minimap-canvas" width="300" height="300"></canvas>
     </div>
-    <div id="fly-indicator">✈ FLYING MODE</div>
-    <div id="wire-mode-indicator">Select FROM pole</div>
+    <div id="settings-modal">
+        <div id="settings-content">
+            <h2>⚙️ Settings</h2>
+            
+            <div class="settings-group">
+                <label>World Size X (width)</label>
+                <input type="range" id="setting-world-size-x" min="10" max="100" step="10" value="40">
+                <span id="world-size-x-value">40</span>
+                <div class="settings-note">Width dimension (10-100 blocks)</div>
+            </div>
+
+            <div class="settings-group">
+                <label>World Size Z (depth)</label>
+                <input type="range" id="setting-world-size-z" min="10" max="100" step="10" value="40">
+                <span id="world-size-z-value">40</span>
+                <div class="settings-note">Depth dimension (10-100 blocks). Requires reload.</div>
+            </div>
+
+            <div class="settings-group">
+                <label>Terrain Generation</label>
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="setting-random-terrain" checked>
+                    <label style="margin: 0;">Enable random terrain (uncheck for flat)</label>
+                </div>
+                <div class="settings-note">Flat terrain is useful for testing. Requires reload.</div>
+            </div>
+
+            <div class="settings-group">
+                <label>Terrain Thickness (layers)</label>
+                <input type="number" id="setting-terrain-thickness" min="1" max="10" value="3">
+                <div class="settings-note">How many layers deep the terrain goes. Requires reload.</div>
+            </div>
+
+            <div class="settings-group">
+                <label>Movement Speed</label>
+                <input type="number" id="setting-movement-speed" min="5" max="50" step="5" value="20">
+                <div class="settings-note">Player walking/flying speed. Applied immediately.</div>
+            </div>
+
+            <div class="settings-group">
+                <label>Mouse Sensitivity</label>
+                <input type="number" id="setting-mouse-sensitivity" min="0.5" max="5" step="0.5" value="2">
+                <div class="settings-note">Camera rotation speed. Applied immediately.</div>
+            </div>
+
+            <div class="settings-group">
+                <label>Render Distance (fog)</label>
+                <input type="number" id="setting-render-distance" min="30" max="200" step="10" value="100">
+                <div class="settings-note">How far you can see. Applied immediately.</div>
+            </div>
+
+            <div class="settings-buttons">
+                <button class="settings-button" id="settings-cancel">Cancel</button>
+                <button class="settings-button primary" id="settings-apply">Apply & Save</button>
+            </div>
+        </div>
+    </div>
+    <div id="ui-bar">
+        <div id="fly-indicator">✈ FLYING MODE</div>
+        <div id="wire-mode-indicator">Select FROM pole</div>
+        <button class="ui-button" id="export-btn">Export Scene</button>
+        <button class="ui-button" id="import-btn">Import Scene</button>
+        <button class="ui-button" id="challenge-btn">⚔️ Challenge Mode</button>
+        <input id="import-input" type="file" accept=".msgpack,application/octet-stream" style="display:none;" />
+    </div>
     <div id="block-selector">
         <div class="block-option selected" data-type="dirt" title="Dirt"></div>
         <div class="block-option" data-type="stone" title="Stone"></div>
@@ -334,12 +568,6 @@
         Left Click: Remove Block/Wire<br>
         Right Click: Place Block / Select Pole<br>
         Scroll Wheel: Select Block Type
-    </div>
-    <div id="ui-bar">
-        <button class="ui-button" id="export-btn">Export Scene</button>
-        <button class="ui-button" id="import-btn">Import Scene</button>
-        <button class="ui-button" id="challenge-btn">⚔️ Challenge Mode</button>
-        <input id="import-input" type="file" accept=".msgpack,application/octet-stream" style="display:none;" />
     </div>
     <script type="module">
         import './js/main.js';
