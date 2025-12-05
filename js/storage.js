@@ -90,10 +90,10 @@ export function importSceneFromMsgpack(arrayBuffer, scene, world, objects, condu
     conductors.length = 0;
     world.clear();
 
-    console.log('Importing scene...');
-    console.log('Blocks to import:', unpacked.blocks?.length || 0);
-    console.log('Poles to import:', unpacked.poles?.length || 0);
-    console.log('Wires to import:', unpacked.wires?.length || 0);
+    // console.log('Importing scene...');
+    // console.log('Blocks to import:', unpacked.blocks?.length || 0);
+    // console.log('Poles to import:', unpacked.poles?.length || 0);
+    // console.log('Wires to import:', unpacked.wires?.length || 0);
 
     if (unpacked.blocks) {
         unpacked.blocks.forEach(b => {
@@ -106,8 +106,8 @@ export function importSceneFromMsgpack(arrayBuffer, scene, world, objects, condu
             objects.push(voxel);
             world.set(Math.round(b.x), Math.round(b.y), Math.round(b.z));
         });
-        console.log('Blocks imported:', unpacked.blocks.length);
-        console.log('World data size:', world.data.size);
+        // console.log('Blocks imported:', unpacked.blocks.length);
+        // console.log('World data size:', world.data.size);
     }
 
     if (unpacked.poles) {
@@ -163,6 +163,6 @@ export function importSceneFromMsgpack(arrayBuffer, scene, world, objects, condu
         });
     }
     
-    console.log('Import complete');
+    // console.log('Import complete');
     return true;
 }

@@ -64,7 +64,8 @@ export function createConductor(fromPole, toPole, fromPos, toPos) {
         toPos: toPos.clone(),
         tube,
         material: tubeMaterial,
-        hasCollision: false
+        hasCollision: false,
+        isPowered: false
     };
 
     tube.userData.isConductor = true;

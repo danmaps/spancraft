@@ -195,7 +195,7 @@ export class ChallengeMode {
         
         // Reset powered state for all conductors
         conductors.forEach(c => {
-            c.userData.isPowered = false;
+            c.isPowered = false;
         });
         
         // Find conductors touching substation pole OR poles on battery blocks
@@ -239,7 +239,7 @@ export class ChallengeMode {
         // Make conductors attached to power source glow
         for (let c of powerSourceConductors) {
             c.material.emissive.setHex(0xFFFF00); // Yellow glow
-            c.userData.isPowered = true;
+            c.isPowered = true;
         }
         
         // Track powered conductors
@@ -260,7 +260,7 @@ export class ChallengeMode {
         // Make powered conductors glow (pulsing effect applied in main animate loop)
         for (let c of poweredConductors) {
             c.material.emissive.setHex(0xFFFF00); // Yellow glow
-            c.userData.isPowered = true; // Mark as powered
+            c.isPowered = true;
         }
         
         // Update customer glow

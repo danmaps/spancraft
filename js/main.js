@@ -411,7 +411,7 @@ function animate() {
         challengeMode.checkPowered(conductors, world);
         // Apply pulsing to powered conductors in challenge mode
         conductors.forEach(conductor => {
-            if (conductor.userData.isPowered) {
+            if (conductor.isPowered) {
                 conductor.material.emissiveIntensity = pulseIntensity;
             } else {
                 conductor.material.emissive.setHex(0x000000);
