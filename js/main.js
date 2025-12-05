@@ -131,6 +131,30 @@ async function init() {
             }
         });
     }
+    
+    // Setup challenge completion handlers
+    window.addEventListener('challenge-restart', () => {
+        challengeMode.completed = false;
+        challengeMode.stars = 0;
+        startChallengeMode();
+    });
+    
+    window.addEventListener('challenge-exit', () => {
+        challengeMode.end();
+        const challengeUI = document.getElementById('challenge-mode-ui');
+        if (challengeUI) {
+            challengeUI.style.display = 'none';
+        }
+    });
+
+    // Setup minimap toggle
+    const minimapToggle = document.getElementById('minimap-toggle');
+    const minimapDiv = document.getElementById('minimap');
+    if (minimapToggle) {
+        minimapToggle.addEventListener('click', () => {
+            minimapDiv.classList.toggle('visible');
+        });
+    }
 
     // Interaction
     setupInteraction();
@@ -209,6 +233,10 @@ function setupInteraction() {
                         const conductorData = intersect.object.userData.conductorData;
                         const condIndex = conductors.indexOf(conductorData);
                         if (condIndex > -1) {
+                            // Record cost refund in challenge mode
+                            if (challengeMode.isActive) {
+                                challengeMode.recordConductorRemove(conductorData.fromPos, conductorData.toPos);
+                            }
                             conductors.splice(condIndex, 1);
                         }
                         scene.remove(intersect.object);
@@ -242,6 +270,11 @@ function setupInteraction() {
                         objects.splice(objects.indexOf(intersect.object), 1);
                     }
 
+                    // Record cost refund in challenge mode
+                    if (challengeMode.isActive) {
+                        challengeMode.recordBlockRemove(blockPos);
+                    }
+                    
                     world.delete(Math.round(blockPos.x), Math.round(blockPos.y), Math.round(blockPos.z));
                 }
             } else if (event.button === 2) { // Right click: Place or Select Pole
@@ -297,7 +330,7 @@ function setupInteraction() {
 
                                 // Record cost in challenge mode
                                 if (challengeMode.isActive) {
-                                    challengeMode.recordConductorPlace();
+                                    challengeMode.recordConductorPlace(fromPos, toPos);
                                 }
 
                                 conductorFromPole = null;
@@ -358,7 +391,7 @@ function setupInteraction() {
                         
                         // Record cost in challenge mode
                         if (challengeMode.isActive) {
-                            challengeMode.recordBlockPlace();
+                            challengeMode.recordBlockPlace(voxelPos);
                         }
                         
                         // console.log('--- Pole Block Created ---');
@@ -368,7 +401,7 @@ function setupInteraction() {
                     } else {
                         // Regular block - record cost in challenge mode
                         if (challengeMode.isActive) {
-                            challengeMode.recordBlockPlace();
+                            challengeMode.recordBlockPlace(voxelPos);
                         }
                     }
 
@@ -418,6 +451,11 @@ function animate() {
                 conductor.material.emissiveIntensity = 0;
             }
         });
+        
+        // Check if challenge is complete (powered + under or near budget)
+        if (challengeMode.isPowered && !challengeMode.completed) {
+            challengeMode.finishChallenge();
+        }
     } else {
         // Find all power sources (poles on battery blocks)
         const powerSources = new Set();
