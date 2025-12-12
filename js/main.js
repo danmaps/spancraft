@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 
 import { createScene, createCamera, createRenderer, setupLighting, onWindowResize } from './scene.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { loadTextures, createBlockMaterials, getBlockGeometry, BLOCK_TYPES, isPoleType } from './blocks.js';
 import { World, createHighlightMesh } from './world.js';
 import { calculateCatenaryCurve, createConductor, checkConductorCollision, updateConductorVisuals, updateSparkEffect } from './conductor.js';
@@ -13,7 +16,7 @@ import { ChallengeMode } from './challengeMode.js';
 import { ActionHistory } from './actionHistory.js';
 import { Settings, initSettingsUI } from './settings.js';
 
-let scene, camera, renderer, controls, world, player, ui, blockMaterials, geometries, minimap, challengeMode;
+let scene, camera, renderer, composer, bloomPass, controls, world, player, ui, blockMaterials, geometries, minimap, challengeMode;
 let actionHistory, settings;
 let conductorFromPole = null;
 let conductorFromObject = null;
@@ -30,7 +33,18 @@ async function init() {
     scene = createScene();
     camera = createCamera();
     renderer = createRenderer();
-    onWindowResize(camera, renderer);
+    // Tone mapping to keep brights clean (neon lines) without blowing out the scene
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.8;
+
+    // Post-processing setup with bloom for bright/sparky effects (neon-line style)
+    composer = new EffectComposer(renderer);
+    const renderPass = new RenderPass(scene, camera);
+    bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.7, 0.25, 0.85);
+    composer.addPass(renderPass);
+    composer.addPass(bloomPass);
+
+    onWindowResize(camera, renderer, composer);
 
     // Apply fog settings
     scene.fog = new THREE.Fog(0x87CEEB, 10, config.renderDistance);
@@ -213,6 +227,46 @@ async function init() {
 
     // Start animation loop
     animate();
+
+function recheckAllConductorCollisions() {
+    // Check all conductors for collisions and update their state
+    conductors.forEach(conductor => {
+        const hasCollision = checkConductorCollision(conductor.fromPos, conductor.toPos, world);
+        conductor.hasCollision = hasCollision;
+        
+        if (hasCollision) {
+            conductor.material.color.setHex(0xff0000);
+            conductor.material.emissive.setHex(0xff0000);
+            conductor.material.emissiveIntensity = 0.5;
+            conductor.spark.visible = false;
+            conductor.sparkLight.visible = false;
+        } else {
+            conductor.material.color.setHex(0x1a1a1a);
+            conductor.material.emissive.setHex(0x000000);
+            conductor.material.emissiveIntensity = 0;
+        }
+    });
+}
+}
+
+function recheckAllConductorCollisions() {
+    // Check all conductors for collisions and update their state
+    conductors.forEach(conductor => {
+        const hasCollision = checkConductorCollision(conductor.fromPos, conductor.toPos, world);
+        conductor.hasCollision = hasCollision;
+        
+        if (hasCollision) {
+            conductor.material.color.setHex(0xff0000);
+            conductor.material.emissive.setHex(0xff0000);
+            conductor.material.emissiveIntensity = 0.5;
+            conductor.spark.visible = false;
+            conductor.sparkLight.visible = false;
+        } else {
+            conductor.material.color.setHex(0x1a1a1a);
+            conductor.material.emissive.setHex(0x000000);
+            conductor.material.emissiveIntensity = 0;
+        }
+    });
 }
 
 function startChallengeMode() {
@@ -350,6 +404,10 @@ function setupInteraction() {
                     }
                     
                     world.delete(Math.round(blockPos.x), Math.round(blockPos.y), Math.round(blockPos.z));
+                                        recheckAllConductorCollisions();
+                    
+                    // Recheck all conductor collisions
+                    recheckAllConductorCollisions();
                 }
             } else if (event.button === 2) { // Right click: Place or Select Pole
                 const intersects = ui.raycaster.intersectObjects(objects);
@@ -416,6 +474,7 @@ function setupInteraction() {
                                 scene.add(spark);
                                 objects.push(tube);
                                 conductors.push(conductorData);
+                                recheckAllConductorCollisions();
 
                                 // Record action in history
                                 actionHistory.recordAction({
@@ -518,6 +577,10 @@ function setupInteraction() {
                     scene.add(voxel);
                     objects.push(voxel);
                     world.set(Math.round(voxelPos.x), Math.round(voxelPos.y), Math.round(voxelPos.z), blockType);
+                                        recheckAllConductorCollisions();
+                    
+                    // Recheck all conductor collisions
+                    recheckAllConductorCollisions();
                 }
             }
         }
@@ -661,7 +724,7 @@ function animate() {
     minimap.update(playerPos, playerRotation, objects, conductors);
 
     player.prevTime = time;
-    renderer.render(scene, camera);
+    composer.render();
 }
 
 function executeUndo(action) {
@@ -698,6 +761,7 @@ function executeUndo(action) {
         }
         
         world.delete(roundedPos.x, roundedPos.y, roundedPos.z);
+            recheckAllConductorCollisions();
         console.log(`[UNDO] Removed block-place at (${roundedPos.x}, ${roundedPos.y}, ${roundedPos.z})`);
         
     } else if (action.type === 'block-remove') {
@@ -735,7 +799,10 @@ function executeUndo(action) {
         scene.add(voxel);
         objects.push(voxel);
         world.set(roundedPos.x, roundedPos.y, roundedPos.z, blockType);
+        recheckAllConductorCollisions();
         console.log(`[UNDO] Restored block-remove ${blockType} at (${roundedPos.x}, ${roundedPos.y}, ${roundedPos.z})`);
+            recheckAllConductorCollisions();
+            recheckAllConductorCollisions();
         
     } else if (action.type === 'conductor-place') {
         const fromPos = new THREE.Vector3().copy(action.fromPos);
@@ -779,6 +846,7 @@ function executeUndo(action) {
             scene.add(spark);
             objects.push(tube);
             conductors.push(conductorData);
+            recheckAllConductorCollisions();
             
             console.log(`[UNDO] Restored conductor-remove from (${Math.round(fromPos.x)}, ${Math.round(fromPos.y)}, ${Math.round(fromPos.z)}) to (${Math.round(toPos.x)}, ${Math.round(toPos.y)}, ${Math.round(toPos.z)})`);
         }
@@ -870,6 +938,7 @@ function executeRedo(action) {
             scene.add(spark);
             objects.push(tube);
             conductors.push(conductorData);
+            recheckAllConductorCollisions();
             
             console.log(`[REDO] Re-placed conductor-place from (${Math.round(fromPos.x)}, ${Math.round(fromPos.y)}, ${Math.round(fromPos.z)}) to (${Math.round(toPos.x)}, ${Math.round(toPos.y)}, ${Math.round(toPos.z)})`);
         }

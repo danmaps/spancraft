@@ -87,6 +87,12 @@ export class World {
         const x = Math.round(position.x);
         const y = Math.round(position.y);
         const z = Math.round(position.z);
+        // Invisible boundary walls on X/Z edges
+        const halfX = this.worldSizeX / 2;
+        const halfZ = this.worldSizeZ / 2;
+        if (x < -halfX || x >= halfX || z < -halfZ || z >= halfZ) {
+            return true;
+        }
         return this.has(x, y, z);
     }
 

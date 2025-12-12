@@ -49,10 +49,12 @@ function solveCatenaryParameter(L, S) {
 export function createConductor(fromPole, toPole, fromPos, toPos) {
     const catenaryPoints = calculateCatenaryCurve(fromPos, toPos);
     const curve = new THREE.CatmullRomCurve3(catenaryPoints);
-    const tubeGeometry = new THREE.TubeGeometry(curve, 50, 0.03125, 8, false);
-    const tubeMaterial = new THREE.MeshLambertMaterial({
+    const tubeGeometry = new THREE.TubeGeometry(curve, 50, 0.015625, 8, false);
+    const tubeMaterial = new THREE.MeshStandardMaterial({
         color: 0x1a1a1a,
-        emissive: 0x000000
+        emissive: 0x000000,
+        metalness: 0.8,
+        roughness: 0.2
     });
     const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
     tube.castShadow = true;
@@ -103,6 +105,13 @@ export function checkConductorCollision(fromPos, toPos, world) {
         const y = Math.round(point.y);
         const z = Math.round(point.z);
 
+        // Allow proximity to the attachment poles
+        const distToFrom = Math.hypot(point.x - fromPos.x, point.z - fromPos.z);
+        const distToTo = Math.hypot(point.x - toPos.x, point.z - toPos.z);
+        if (distToFrom <= 0.6 || distToTo <= 0.6) {
+            continue;
+        }
+
         // Exclude entire pole columns (ignore y coordinate for pole check)
         const isFromPoleColumn = (x === Math.round(fromPos.x) && z === Math.round(fromPos.z));
         const isToPoleColumn = (x === Math.round(toPos.x) && z === Math.round(toPos.z));
@@ -120,6 +129,12 @@ export function checkConductorCollision(fromPos, toPos, world) {
         for (let dx = -1; dx <= 1; dx++) {
             for (let dz = -1; dz <= 1; dz++) {
                 if (dx === 0 && dz === 0) continue;
+                // Skip neighbor checks near attachment poles
+                const nx = x + dx;
+                const nz = z + dz;
+                const nDistFrom = Math.hypot(nx - fromPos.x, nz - fromPos.z);
+                const nDistTo = Math.hypot(nx - toPos.x, nz - toPos.z);
+                if (nDistFrom <= 0.6 || nDistTo <= 0.6) continue;
                 if (world.has(x + dx, y, z + dz)) {
                     return true;
                 }
@@ -143,9 +158,12 @@ export function updateConductorVisuals(conductor) {
 
 export function updateSparkEffect(conductor, deltaTime) {
     if (!conductor.isPowered || conductor.hasCollision) {
-        // Hide spark if not powered or has collision
+        // Hide spark if not powered or has collision - return to dark unpowered state
         conductor.spark.visible = false;
         conductor.sparkLight.visible = false;
+        conductor.material.color.setHex(0x1a1a1a);
+        conductor.material.emissive.setHex(0x000000);
+        conductor.material.emissiveIntensity = 0;
         return;
     }
 
@@ -166,17 +184,12 @@ export function updateSparkEffect(conductor, deltaTime) {
     // Pulsing glow effect
     const pulse = 0.7 + Math.sin(conductor.sparkProgress * Math.PI * 4) * 0.3;
     conductor.sparkMaterial.opacity = pulse;
-    conductor.sparkLight.intensity = 2 + pulse * 1.5;
+    conductor.sparkMaterial.color.setHex(0x66ccff);
+    conductor.sparkLight.color.setHex(0x66ccff);
+    conductor.sparkLight.intensity = 1.2 + pulse * 0.8;
 
-    // Add trail effect with emissive on wire
-    const trailLength = 0.15;
-    const distanceFromSpark = Math.abs(conductor.sparkProgress - 0.5);
-    if (distanceFromSpark < trailLength) {
-        const trailIntensity = (1 - distanceFromSpark / trailLength) * 0.3;
-        conductor.material.emissive.setHex(0x0088ff);
-        conductor.material.emissiveIntensity = trailIntensity;
-    } else {
-        conductor.material.emissive.setHex(0x0044ff);
-        conductor.material.emissiveIntensity = 0.1;
-    }
+    // Make the tube bright neon cyan when powered for bloom to pick it up
+    conductor.material.color.setHex(0x00ffff);
+    conductor.material.emissive.setHex(0xeeffff);
+    conductor.material.emissiveIntensity = 1.5;
 }

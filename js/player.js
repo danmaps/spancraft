@@ -34,10 +34,28 @@ export class Player {
             }
         };
 
-        document.addEventListener('click', () => {
-            // Don't lock pointer if settings modal is visible
+        const isUIElement = (target) => {
+            return target.closest('#ui-bar') ||
+                target.closest('#settings-toggle') ||
+                target.closest('#minimap-toggle') ||
+                target.closest('#settings-modal') ||
+                target.closest('#challenge-mode-ui') ||
+                target.closest('#block-selector') ||
+                target.closest('#minimap') ||
+                target.closest('#import-input') ||
+                target.closest('#pointer-lock-overlay') ||
+                target.closest('#click-to-play') ||
+                target.tagName === 'BUTTON' ||
+                target.tagName === 'INPUT' ||
+                target.tagName === 'LABEL' ||
+                target.tagName === 'SELECT';
+        };
+
+        document.addEventListener('click', (event) => {
+            const target = event.target;
+            // Don't lock pointer if clicking UI or if settings modal is visible
             const settingsModal = document.getElementById('settings-modal');
-            if (settingsModal && settingsModal.style.display === 'block') {
+            if ((settingsModal && settingsModal.style.display === 'block') || isUIElement(target)) {
                 return;
             }
             this.controls.lock();
