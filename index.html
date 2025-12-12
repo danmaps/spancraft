@@ -44,6 +44,47 @@
             transform: translate(-50%, -50%);
         }
 
+        #pointer-lock-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.5) 100%);
+            pointer-events: none;
+            z-index: 50;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        #pointer-lock-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #click-to-play {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
+            animation: pulse 2s ease-in-out infinite;
+            pointer-events: none;
+            z-index: 51;
+        }
+
+        #click-to-play.hidden {
+            display: none !important;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+        }
+
         #minimap-toggle, #settings-toggle {
             position: absolute;
             width: 56px;
@@ -296,9 +337,16 @@
             border-radius: 0px;
             pointer-events: none;
             user-select: none;
-            display: none;
+            min-height: 20px;
+            overflow: hidden;
             box-shadow: inset 0 0 0 1px #222, 0 0 8px #ffff0055;
             text-shadow: 1px 1px 0px #000;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        #wire-mode-indicator:not(:empty) {
+            opacity: 1;
         }
 
         #import-input {
@@ -473,6 +521,8 @@
 </head>
 
 <body>
+    <div id="pointer-lock-overlay"></div>
+    <div id="click-to-play">Click to Play</div>
     <div id="crosshair"></div>
     <button id="settings-toggle" title="Settings">⚙️</button>
     <button id="minimap-toggle" title="Toggle Minimap">🗺️</button>

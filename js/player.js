@@ -19,6 +19,21 @@ export class Player {
     }
 
     setupControls() {
+        const updateOverlay = () => {
+            const overlay = document.getElementById('pointer-lock-overlay');
+            const clickToPlay = document.getElementById('click-to-play');
+            
+            if (document.pointerLockElement) {
+                // Pointer is locked - hide overlay
+                overlay.classList.add('hidden');
+                clickToPlay.classList.add('hidden');
+            } else {
+                // Pointer is not locked - show overlay
+                overlay.classList.remove('hidden');
+                clickToPlay.classList.remove('hidden');
+            }
+        };
+
         document.addEventListener('click', () => {
             // Don't lock pointer if settings modal is visible
             const settingsModal = document.getElementById('settings-modal');
@@ -27,6 +42,16 @@ export class Player {
             }
             this.controls.lock();
         });
+
+        // Handle pointer lock state changes
+        document.addEventListener('pointerlockchange', updateOverlay);
+        
+        // Also listen to controls events
+        this.controls.addEventListener('lock', updateOverlay);
+        this.controls.addEventListener('unlock', updateOverlay);
+
+        // Set initial state
+        updateOverlay();
 
         document.addEventListener('keydown', (e) => this.onKeyDown(e));
         document.addEventListener('keyup', (e) => this.onKeyUp(e));

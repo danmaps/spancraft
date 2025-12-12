@@ -96,20 +96,33 @@ export function createConductor(fromPole, toPole, fromPos, toPos) {
 }
 
 export function checkConductorCollision(fromPos, toPos, world) {
-    const catenaryPoints = calculateCatenaryCurve(fromPos, toPos, 30);
+    const catenaryPoints = calculateCatenaryCurve(fromPos, toPos, 50);
 
     for (const point of catenaryPoints) {
         const x = Math.round(point.x);
         const y = Math.round(point.y);
         const z = Math.round(point.z);
 
-        if (world.has(x, y, z)) {
-            // Exclude entire pole columns (ignore y coordinate for pole check)
-            const isFromPoleColumn = (x === Math.round(fromPos.x) && z === Math.round(fromPos.z));
-            const isToPoleColumn = (x === Math.round(toPos.x) && z === Math.round(toPos.z));
+        // Exclude entire pole columns (ignore y coordinate for pole check)
+        const isFromPoleColumn = (x === Math.round(fromPos.x) && z === Math.round(fromPos.z));
+        const isToPoleColumn = (x === Math.round(toPos.x) && z === Math.round(toPos.z));
 
-            if (!isFromPoleColumn && !isToPoleColumn) {
-                return true;
+        if (isFromPoleColumn || isToPoleColumn) {
+            continue;
+        }
+
+        // Check if conductor point intersects terrain blocks
+        if (world.has(x, y, z)) {
+            return true;
+        }
+
+        // Also check blocks around the point for better collision detection
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dz = -1; dz <= 1; dz++) {
+                if (dx === 0 && dz === 0) continue;
+                if (world.has(x + dx, y, z + dz)) {
+                    return true;
+                }
             }
         }
     }

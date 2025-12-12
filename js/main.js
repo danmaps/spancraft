@@ -108,7 +108,7 @@ async function init() {
         if (blockType !== BLOCK_TYPES.CONDUCTOR) {
             conductorFromPole = null;
             conductorFromObject = null;
-            document.getElementById('wire-mode-indicator').style.display = 'none';
+            document.getElementById('wire-mode-indicator').textContent = '';
         }
     };
 
@@ -374,7 +374,6 @@ function setupInteraction() {
                                 conductorFromPole = clickedPole;
                                 conductorFromObject = clickedObject;
                                 wireIndicator.textContent = 'Select TO pole';
-                                wireIndicator.style.display = 'block';
                             } else {
                                 // Debug: Log all relevant positions
                                 // console.log('--- Conductor Creation Debug ---');
@@ -397,19 +396,22 @@ function setupInteraction() {
                                     return;
                                 }
 
-                                // Check for collisions
-                                if (checkConductorCollision(fromPos, toPos, world)) {
-                                    wireIndicator.textContent = 'Cannot place wire - collision detected!';
-                                    wireIndicator.style.color = '#ff0000';
-                                    conductorFromPole = null;
-                                    conductorFromObject = null;
-                                    setTimeout(() => {
-                                        wireIndicator.style.color = '#ffff00';
-                                    }, 2000);
-                                    return;
-                                }
-
                                 const { tube, conductorData, spark } = createConductor(conductorFromPole, clickedPole, fromPos, toPos);
+                                
+                                // Check for collisions and mark accordingly
+                                const hasCollision = checkConductorCollision(fromPos, toPos, world);
+                                conductorData.hasCollision = hasCollision;
+                                
+                                if (hasCollision) {
+                                    // Show temporary warning but allow placement
+                                    wireIndicator.textContent = '⚠️ Wire collision - adjust terrain to fix clearance!';
+                                    wireIndicator.style.color = '#ff8800';
+                                    setTimeout(() => {
+                                        wireIndicator.textContent = '';
+                                        wireIndicator.style.color = '#ffff00';
+                                    }, 3000);
+                                }
+                                
                                 scene.add(tube);
                                 scene.add(spark);
                                 objects.push(tube);
@@ -632,14 +634,17 @@ function animate() {
             });
         }
 
-        // Apply pulsing glow to powered conductors
+        // Apply visual effects to powered conductors
         conductors.forEach(conductor => {
             if (poweredConductors.has(conductor)) {
-                conductor.material.emissive.setHex(0xFFFF00);
-                conductor.material.emissiveIntensity = pulseIntensity;
+                conductor.isPowered = true;
+                updateSparkEffect(conductor, delta * 1000);
             } else {
+                conductor.isPowered = false;
                 conductor.material.emissive.setHex(0x000000);
                 conductor.material.emissiveIntensity = 0;
+                conductor.spark.visible = false;
+                conductor.sparkLight.visible = false;
             }
         });
     }
