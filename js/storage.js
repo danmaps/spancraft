@@ -99,11 +99,29 @@ export function importSceneFromMsgpack(arrayBuffer, scene, world, objects, condu
 
     if (unpacked.blocks) {
         unpacked.blocks.forEach(b => {
-            const voxel = new THREE.Mesh(geometries.standard, blockMaterials[b.type] || blockMaterials.dirt);
+            let material = blockMaterials[b.type] || blockMaterials.dirt;
+            
+            // Create special materials for challenge buildings if needed
+            if (b.type === 'substation' && !blockMaterials['substation']) {
+                material = new THREE.MeshStandardMaterial({ 
+                    color: 0x00AA00, 
+                    emissive: 0x00FF00,
+                    emissiveIntensity: 0.3
+                });
+            } else if (b.type === 'customer' && !blockMaterials['customer']) {
+                material = new THREE.MeshStandardMaterial({ 
+                    color: 0x0000AA,
+                    emissive: 0x0000FF,
+                    emissiveIntensity: 0.0
+                });
+            }
+            
+            const voxel = new THREE.Mesh(geometries.standard, material);
             voxel.position.set(b.x, b.y, b.z);
             voxel.castShadow = true;
             voxel.receiveShadow = true;
             voxel.userData.blockType = b.type;
+            voxel.userData.isBuilding = true;
             scene.add(voxel);
             objects.push(voxel);
             world.set(Math.round(b.x), Math.round(b.y), Math.round(b.z));

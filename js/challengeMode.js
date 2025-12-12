@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { checkConductorCollision } from './conductor.js';
+import { PowerSystem } from './powerSystem.js';
 
 export class ChallengeMode {
     constructor(scene, world, blockMaterials, geometries, controls = null) {
@@ -289,78 +290,46 @@ export class ChallengeMode {
     }
 
     checkPowered(conductors, world) {
-        // Check if any conductor connects substation to customer
-        this.isPowered = false;
+        // Guard: cannot check power without poles
+        if (!this.substationPole || !this.customerPole) {
+            return;
+        }
         
         // Reset powered state for all conductors
         conductors.forEach(c => {
             c.isPowered = false;
         });
         
-        // Find conductors touching substation pole OR poles on battery blocks
-        const powerSourceConductors = conductors.filter(c => {
-            // Check if connected to substation pole
-            const touchesSubstation = 
-                (Math.abs(c.fromPos.x - this.substationPole.position.x) < 0.1 &&
-                 Math.abs(c.fromPos.y - this.substationPole.position.y) < 0.1 &&
-                 Math.abs(c.fromPos.z - this.substationPole.position.z) < 0.1) ||
-                (Math.abs(c.toPos.x - this.substationPole.position.x) < 0.1 &&
-                 Math.abs(c.toPos.y - this.substationPole.position.y) < 0.1 &&
-                 Math.abs(c.toPos.z - this.substationPole.position.z) < 0.1);
-            
-            if (touchesSubstation) return true;
-            
-            // Check if pole is on a battery block
-            const fromBelowY = Math.round(c.fromPos.y) - 1;
-            const toBelowY = Math.round(c.toPos.y) - 1;
-            
-            const fromOnBattery = world && world.get(
-                Math.round(c.fromPos.x),
-                fromBelowY,
-                Math.round(c.fromPos.z)
-            ) === 'battery';
-            
-            const toOnBattery = world && world.get(
-                Math.round(c.toPos.x),
-                toBelowY,
-                Math.round(c.toPos.z)
-            ) === 'battery';
-            
-            return fromOnBattery || toOnBattery;
-        });
+        // Collect power sources: substation pole + any battery poles
+        const powerSources = [
+            {
+                x: this.substationPole.position.x,
+                y: this.substationPole.position.y,
+                z: this.substationPole.position.z
+            }
+        ];
         
-        // Reset all conductor glows first
+        // Add battery poles as additional power sources
+        const batteryPoles = PowerSystem.getPowerSources(conductors, world);
+        powerSources.push(...batteryPoles);
+        
+        // Propagate power through the network
+        const { poweredPoles, poweredConductors } = PowerSystem.propagatePower(powerSources, conductors);
+        
+        // Reset all conductor glows
         for (let c of conductors) {
             c.material.emissive.setHex(0x000000);
             c.material.emissiveIntensity = 0;
         }
         
-        // Make conductors attached to power source glow
-        for (let c of powerSourceConductors) {
-            c.material.emissive.setHex(0xFFFF00); // Yellow glow
-            c.isPowered = true;
-        }
-        
-        // Track powered conductors
-        const poweredConductors = new Set();
-        
-        // Check if any of those form a path to customer pole
-        for (let conductor of powerSourceConductors) {
-            const pathConductors = [];
-            if (this.isConnectedToCustomer(conductor, conductors, new Set(), pathConductors)) {
-                this.isPowered = true;
-                // Mark all conductors in the path as powered
-                for (let c of pathConductors) {
-                    poweredConductors.add(c);
-                }
-            }
-        }
-        
-        // Make powered conductors glow (pulsing effect applied in main animate loop)
+        // Light up powered conductors
         for (let c of poweredConductors) {
             c.material.emissive.setHex(0xFFFF00); // Yellow glow
             c.isPowered = true;
         }
+        
+        // Check if customer pole is powered
+        this.isPowered = PowerSystem.isPowered(this.customerPole.position, poweredPoles);
         
         // Update customer glow
         if (this.customer) {
@@ -368,48 +337,6 @@ export class ChallengeMode {
                 block.material.emissiveIntensity = this.isPowered ? 0.5 : 0.0;
             }
         }
-    }
-
-    isConnectedToCustomer(conductor, allConductors, visited, pathConductors = []) {
-        pathConductors.push(conductor);
-        
-        const otherEnd = Math.abs(conductor.fromPos.x - this.substationPole.position.x) < 0.1 
-            ? conductor.toPos 
-            : conductor.fromPos;
-        
-        // Check if this is the customer pole
-        if (Math.abs(otherEnd.x - this.customerPole.position.x) < 0.1 &&
-            Math.abs(otherEnd.y - this.customerPole.position.y) < 0.1 &&
-            Math.abs(otherEnd.z - this.customerPole.position.z) < 0.1) {
-            return true;
-        }
-        
-        // Mark as visited
-        const key = `${otherEnd.x},${otherEnd.y},${otherEnd.z}`;
-        if (visited.has(key)) {
-            pathConductors.pop();
-            return false;
-        }
-        visited.add(key);
-        
-        // Check for other conductors from this end
-        for (let other of allConductors) {
-            if (other === conductor) continue;
-            
-            if ((Math.abs(other.fromPos.x - otherEnd.x) < 0.1 &&
-                 Math.abs(other.fromPos.y - otherEnd.y) < 0.1 &&
-                 Math.abs(other.fromPos.z - otherEnd.z) < 0.1) ||
-                (Math.abs(other.toPos.x - otherEnd.x) < 0.1 &&
-                 Math.abs(other.toPos.y - otherEnd.y) < 0.1 &&
-                 Math.abs(other.toPos.z - otherEnd.z) < 0.1)) {
-                if (this.isConnectedToCustomer(other, allConductors, visited, pathConductors)) {
-                    return true;
-                }
-            }
-        }
-        
-        pathConductors.pop();
-        return false;
     }
 
     updateUI() {

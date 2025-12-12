@@ -15,6 +15,7 @@ import { Minimap } from './minimap.js';
 import { ChallengeMode } from './challengeMode.js';
 import { ActionHistory } from './actionHistory.js';
 import { Settings, initSettingsUI } from './settings.js';
+import { PowerSystem } from './powerSystem.js';
 
 let scene, camera, renderer, composer, bloomPass, controls, world, player, ui, blockMaterials, geometries, minimap, challengeMode;
 let actionHistory, settings;
@@ -660,59 +661,11 @@ function animate() {
             }
         }
     } else {
-        // Find all power sources (poles on battery blocks)
-        const powerSources = new Set();
-        conductors.forEach(conductor => {
-            const fromBelowY = Math.round(conductor.fromPos.y) - 1;
-            const toBelowY = Math.round(conductor.toPos.y) - 1;
-            
-            const fromOnBattery = world.get(
-                Math.round(conductor.fromPos.x),
-                fromBelowY,
-                Math.round(conductor.fromPos.z)
-            ) === 'battery';
-            
-            const toOnBattery = world.get(
-                Math.round(conductor.toPos.x),
-                toBelowY,
-                Math.round(conductor.toPos.z)
-            ) === 'battery';
-            
-            if (fromOnBattery) {
-                powerSources.add(`${Math.round(conductor.fromPos.x)},${Math.round(conductor.fromPos.y)},${Math.round(conductor.fromPos.z)}`);
-            }
-            if (toOnBattery) {
-                powerSources.add(`${Math.round(conductor.toPos.x)},${Math.round(conductor.toPos.y)},${Math.round(conductor.toPos.z)}`);
-            }
-        });
-
-        // Propagate power through circuit
-        const poweredPoles = new Set(powerSources);
-        const poweredConductors = new Set();
-        let changed = true;
+        // Free mode: find all power sources (poles on battery blocks)
+        const powerSources = PowerSystem.getPowerSources(conductors, world);
         
-        while (changed) {
-            changed = false;
-            conductors.forEach(conductor => {
-                const fromKey = `${Math.round(conductor.fromPos.x)},${Math.round(conductor.fromPos.y)},${Math.round(conductor.fromPos.z)}`;
-                const toKey = `${Math.round(conductor.toPos.x)},${Math.round(conductor.toPos.y)},${Math.round(conductor.toPos.z)}`;
-                
-                const fromPowered = poweredPoles.has(fromKey);
-                const toPowered = poweredPoles.has(toKey);
-                
-                if (fromPowered || toPowered) {
-                    poweredConductors.add(conductor);
-                    if (!fromPowered) {
-                        poweredPoles.add(fromKey);
-                        changed = true;
-                    }
-                    if (!toPowered) {
-                        poweredPoles.add(toKey);
-                        changed = true;
-                    }
-                }
-            });
-        }
+        // Propagate power through circuit
+        const { poweredPoles, poweredConductors } = PowerSystem.propagatePower(powerSources, conductors);
 
         // Apply visual effects to powered conductors
         conductors.forEach(conductor => {
