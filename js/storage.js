@@ -46,7 +46,9 @@ export function exportSceneToMsgpack(scene, world, objects, conductors) {
             x: obj.position.x,
             y: obj.position.y,
             z: obj.position.z,
-            type: obj.userData.poleType || 'pole'
+            type: obj.userData.poleType || 'pole',
+            isChallengePole: obj.userData.isChallengePole || false,
+            buildingType: obj.userData.buildingType || null
         }));
 
     const wires = conductors.map(c => ({
@@ -118,6 +120,8 @@ export function importSceneFromMsgpack(arrayBuffer, scene, world, objects, condu
             voxel.receiveShadow = true;
             voxel.userData.isPole = true;
             voxel.userData.poleType = p.type;
+            voxel.userData.isChallengePole = p.isChallengePole || false;
+            voxel.userData.buildingType = p.buildingType || null;
 
             const hitboxGeometry = new THREE.BoxGeometry(1, 1, 1);
             const hitboxMaterial = new THREE.MeshBasicMaterial({ visible: false, transparent: true, opacity: 0 });

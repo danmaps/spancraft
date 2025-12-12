@@ -139,6 +139,23 @@ async function init() {
                 // Teleport player to safe spawn position above world center
                 controls.getObject().position.set(0, 50, 0);
                 player.velocity.set(0, 0, 0);
+                
+                // Try to reconstruct challenge mode from imported scene
+                const hasChallengeModeStructures = challengeMode.reconstructFromImport(objects);
+                if (hasChallengeModeStructures && !challengeMode.isActive) {
+                    // Activate challenge mode if structures are present
+                    challengeMode.isActive = true;
+                    const challengeUI = document.getElementById('challenge-mode-ui');
+                    if (challengeUI) {
+                        challengeUI.style.display = 'block';
+                    }
+                    challengeMode.updateUI();
+                }
+                
+                // Check for powered conductors after import
+                if (challengeMode.isActive) {
+                    challengeMode.checkPowered(conductors, world);
+                }
             }
         }
     );

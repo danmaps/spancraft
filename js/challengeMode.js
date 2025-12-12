@@ -52,7 +52,13 @@ export class ChallengeMode {
         // Base corner at integer coordinates
         const baseX = -16;
         const baseZ = -16;
-        const baseY = this.world.getHeight(baseX, baseZ); // Place on ground surface
+        // Find max height across 2x2 footprint to ensure building sits on terrain
+        const baseY = Math.max(
+            this.world.getHeight(baseX, baseZ),
+            this.world.getHeight(baseX + 1, baseZ),
+            this.world.getHeight(baseX, baseZ + 1),
+            this.world.getHeight(baseX + 1, baseZ + 1)
+        );
         
         // Create 2x2x2 cube building from individual voxel blocks
         const buildingMat = new THREE.MeshStandardMaterial({ 
@@ -118,7 +124,13 @@ export class ChallengeMode {
         // Base corner at integer coordinates
         const baseX = 15;
         const baseZ = 15;
-        const baseY = this.world.getHeight(baseX, baseZ); // Place on ground surface
+        // Find max height across 2x2 footprint to ensure building sits on terrain
+        const baseY = Math.max(
+            this.world.getHeight(baseX, baseZ),
+            this.world.getHeight(baseX + 1, baseZ),
+            this.world.getHeight(baseX, baseZ + 1),
+            this.world.getHeight(baseX + 1, baseZ + 1)
+        );
         
         // Create 2x2x2 cube building from individual voxel blocks
         const buildingMat = new THREE.MeshStandardMaterial({ 
@@ -554,5 +566,40 @@ export class ChallengeMode {
         if (element) {
             element.style.display = 'none';
         }
+    }
+
+    reconstructFromImport(objects) {
+        // After importing a scene, reconstruct challenge mode references
+        // Find substation pole (challenge pole with buildingType 'substation')
+        this.substationPole = objects.find(obj => 
+            obj.userData && 
+            obj.userData.isPole && 
+            obj.userData.isChallengePole && 
+            obj.userData.buildingType === 'substation'
+        );
+        
+        // Find customer pole (challenge pole with buildingType 'customer')
+        this.customerPole = objects.find(obj => 
+            obj.userData && 
+            obj.userData.isPole && 
+            obj.userData.isChallengePole && 
+            obj.userData.buildingType === 'customer'
+        );
+        
+        // Find substation building blocks
+        this.substation = objects.filter(obj =>
+            obj.userData &&
+            obj.userData.blockType === 'substation'
+        );
+        
+        // Find customer building blocks
+        this.customer = objects.filter(obj =>
+            obj.userData &&
+            obj.userData.blockType === 'customer'
+        );
+        
+        // Return true if challenge mode structures were found
+        return this.substationPole && this.customerPole && 
+               this.substation.length > 0 && this.customer.length > 0;
     }
 }
