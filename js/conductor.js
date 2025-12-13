@@ -97,8 +97,10 @@ export function createConductor(fromPole, toPole, fromPos, toPos) {
     return { tube, conductorData, spark };
 }
 
-export function checkConductorCollision(fromPos, toPos, world) {
+export function checkConductorCollision(fromPos, toPos, world, objects = []) {
     const catenaryPoints = calculateCatenaryCurve(fromPos, toPos, 50);
+    const collidingBlocks = [];
+    let hasCollision = false;
 
     for (const point of catenaryPoints) {
         const x = Math.round(point.x);
@@ -122,7 +124,23 @@ export function checkConductorCollision(fromPos, toPos, world) {
 
         // Check if conductor point intersects terrain blocks
         if (world.has(x, y, z)) {
-            return true;
+            hasCollision = true;
+            // Find and track any non-pole blocks that collide
+            if (objects.length > 0) {
+                const collidingBlock = objects.find(obj => 
+                    obj.position &&
+                    Math.round(obj.position.x) === x &&
+                    Math.round(obj.position.y) === y &&
+                    Math.round(obj.position.z) === z &&
+                    !obj.userData.isPole &&
+                    !obj.userData.isPoleHitbox &&
+                    obj.userData.blockType !== 'substation' &&
+                    obj.userData.blockType !== 'customer'
+                );
+                if (collidingBlock && !collidingBlocks.includes(collidingBlock)) {
+                    collidingBlocks.push(collidingBlock);
+                }
+            }
         }
 
         // Also check blocks around the point for better collision detection
@@ -136,12 +154,32 @@ export function checkConductorCollision(fromPos, toPos, world) {
                 const nDistTo = Math.hypot(nx - toPos.x, nz - toPos.z);
                 if (nDistFrom <= 0.6 || nDistTo <= 0.6) continue;
                 if (world.has(x + dx, y, z + dz)) {
-                    return true;
+                    hasCollision = true;
+                    // Find and track any non-pole blocks that collide
+                    if (objects.length > 0) {
+                        const collidingBlock = objects.find(obj => 
+                            obj.position &&
+                            Math.round(obj.position.x) === nx &&
+                            Math.round(obj.position.y) === y &&
+                            Math.round(obj.position.z) === nz &&
+                            !obj.userData.isPole &&
+                            !obj.userData.isPoleHitbox &&
+                            obj.userData.blockType !== 'substation' &&
+                            obj.userData.blockType !== 'customer'
+                        );
+                        if (collidingBlock && !collidingBlocks.includes(collidingBlock)) {
+                            collidingBlocks.push(collidingBlock);
+                        }
+                    }
                 }
             }
         }
     }
-    return false;
+
+    return {
+        hasCollision: hasCollision,
+        collidingBlocks: collidingBlocks
+    };
 }
 
 export function updateConductorVisuals(conductor) {

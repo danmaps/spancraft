@@ -52,6 +52,8 @@ export class World {
 
     generateTerrain(materials) {
         const geometry = new THREE.BoxGeometry();
+        console.log(`this.worldSizeX: ${this.worldSizeX}`);
+        console.log(`this.worldSizeZ: ${this.worldSizeZ}`);
         const maxCount = this.worldSizeX * this.worldSizeZ * this.terrainThickness;
         const mesh = new THREE.InstancedMesh(geometry, materials, maxCount);
         mesh.receiveShadow = true;
@@ -134,7 +136,12 @@ export class World {
 export function createHighlightMesh() {
     const highlightMesh = new THREE.Mesh(
         new THREE.BoxGeometry(1.001, 1.001, 1.001),
-        new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true })
+        new THREE.MeshBasicMaterial({ 
+            color: 0xffffff, 
+            wireframe: true,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.6
+        })
     );
     highlightMesh.visible = false;
     return highlightMesh;

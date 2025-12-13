@@ -50,7 +50,12 @@ export class UI {
     getHighlightMesh() {
         const highlightMesh = new THREE.Mesh(
             new THREE.BoxGeometry(1.001, 1.001, 1.001),
-            new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true })
+            new THREE.MeshBasicMaterial({ 
+                color: 0xffffff, 
+                wireframe: true,
+                emissive: 0xffffff,
+                emissiveIntensity: 0.6
+            })
         );
         highlightMesh.visible = false;
         return highlightMesh;
@@ -69,6 +74,14 @@ export class UI {
 
             highlightMesh.position.copy(lookTarget);
             highlightMesh.visible = true;
+            
+                    // Check if this block is colliding with a conductor
+                    const isColliding = collidingBlocksMap.has(intersect.object);
+                    if (isColliding) {
+                        highlightMesh.material.emissiveIntensity = 1.2;
+                    } else {
+                        highlightMesh.material.emissiveIntensity = 0.6;
+                    }
         } else {
             highlightMesh.visible = false;
         }

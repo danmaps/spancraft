@@ -51,8 +51,9 @@ export class ChallengeMode {
     createSubstation(objects) {
         // Green substation - 2x2x2 blocks (matching voxel system)
         // Base corner at integer coordinates
-        const baseX = -16;
-        const baseZ = -16;
+        // Place near the -X, -Z corner of the world
+        const baseX = Math.floor(-this.world.worldSizeX / 2) + 2;
+        const baseZ = Math.floor(-this.world.worldSizeZ / 2) + 2;
         // Find max height across 2x2 footprint to ensure building sits on terrain
         const baseY = Math.max(
             this.world.getHeight(baseX, baseZ),
@@ -123,8 +124,9 @@ export class ChallengeMode {
     createCustomer(objects) {
         // Blue customer - 2x2x2 blocks (matching voxel system)
         // Base corner at integer coordinates
-        const baseX = 15;
-        const baseZ = 15;
+        // Place near the +X, +Z corner of the world
+        const baseX = Math.floor(this.world.worldSizeX / 2) - 3;
+        const baseZ = Math.floor(this.world.worldSizeZ / 2) - 3;
         // Find max height across 2x2 footprint to ensure building sits on terrain
         const baseY = Math.max(
             this.world.getHeight(baseX, baseZ),
@@ -381,7 +383,8 @@ export class ChallengeMode {
 
     hasCollidingConductors(conductors) {
         for (let conductor of conductors) {
-            if (checkConductorCollision(conductor.fromPos, conductor.toPos, this.world)) {
+            const collisionData = checkConductorCollision(conductor.fromPos, conductor.toPos, this.world, []);
+            if (collisionData.hasCollision) {
                 return true;
             }
         }

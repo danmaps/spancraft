@@ -1,7 +1,7 @@
 export class Settings {
     constructor() {
         this.defaults = {
-            worldSizeX: 40,
+            worldSizeX: 10,
             worldSizeZ: 40,
             randomTerrain: true,
             terrainThickness: 3,

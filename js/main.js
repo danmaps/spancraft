@@ -24,6 +24,18 @@ let conductorFromObject = null;
 let conductors = [];
 let objects = [];
 let highlightMesh;
+let collidingBlocksGlowMap = new Map();
+
+function clearCollisionOverlays() {
+    collidingBlocksGlowMap.forEach((glowData) => {
+        if (glowData.overlay) {
+            scene.remove(glowData.overlay);
+            if (glowData.overlay.material) glowData.overlay.material.dispose();
+            if (glowData.overlay.geometry) glowData.overlay.geometry.dispose();
+        }
+    });
+    collidingBlocksGlowMap.clear();
+}
 
 async function init() {
     // Load settings
@@ -108,7 +120,7 @@ async function init() {
     actionHistory = new ActionHistory();
 
     // Player and controls
-    controls = new PointerLockControls(camera, document.body);
+    controls = new PointerLockControls(camera, renderer.domElement);
     scene.add(controls.getObject());
     
     // Set player spawn position above terrain
@@ -245,40 +257,56 @@ async function init() {
 
     // Start animation loop
     animate();
+}
 
 function recheckAllConductorCollisions() {
     // Check all conductors for collisions and update their state
-    conductors.forEach(conductor => {
-        const hasCollision = checkConductorCollision(conductor.fromPos, conductor.toPos, world);
-        conductor.hasCollision = hasCollision;
-        
-        if (hasCollision) {
-            conductor.material.color.setHex(0xff0000);
-            conductor.material.emissive.setHex(0xff0000);
-            conductor.material.emissiveIntensity = 0.5;
-            conductor.spark.visible = false;
-            conductor.sparkLight.visible = false;
-        } else {
-            conductor.material.color.setHex(0x1a1a1a);
-            conductor.material.emissive.setHex(0x000000);
-            conductor.material.emissiveIntensity = 0;
+    // First, clear all previous collision glows
+    // Clear previous collision flags and remove any existing overlays
+    collidingBlocksGlowMap.forEach((glowData, block) => {
+        block.userData.isColliding = false;
+        if (glowData.overlay) {
+            scene.remove(glowData.overlay);
+            if (glowData.overlay.material) {
+                glowData.overlay.material.dispose();
+            }
+            if (glowData.overlay.geometry) {
+                glowData.overlay.geometry.dispose();
+            }
         }
     });
-}
-}
+    collidingBlocksGlowMap.clear();
 
-function recheckAllConductorCollisions() {
-    // Check all conductors for collisions and update their state
     conductors.forEach(conductor => {
-        const hasCollision = checkConductorCollision(conductor.fromPos, conductor.toPos, world);
-        conductor.hasCollision = hasCollision;
+        const collisionData = checkConductorCollision(conductor.fromPos, conductor.toPos, world, objects);
+        conductor.hasCollision = collisionData.hasCollision;
         
-        if (hasCollision) {
+        if (collisionData.hasCollision) {
             conductor.material.color.setHex(0xff0000);
             conductor.material.emissive.setHex(0xff0000);
             conductor.material.emissiveIntensity = 0.5;
             conductor.spark.visible = false;
             conductor.sparkLight.visible = false;
+
+            // Track colliding blocks and add them to glow map
+            collisionData.collidingBlocks.forEach(block => {
+                if (!collidingBlocksGlowMap.has(block)) {
+                    // Create a persistent glow overlay (wireframe box) for this block
+                    const overlayGeometry = new THREE.BoxGeometry(1.001, 1.001, 1.001);
+                    const overlayMaterial = new THREE.MeshBasicMaterial({
+                        color: 0xffffff,
+                        wireframe: true
+                    });
+                    const overlay = new THREE.Mesh(overlayGeometry, overlayMaterial);
+                    overlay.position.copy(block.position);
+                    overlay.userData.isCollisionOverlay = true;
+                    scene.add(overlay);
+
+                    collidingBlocksGlowMap.set(block, { glowPhase: 0, overlay });
+                    block.userData.isColliding = true;
+                    console.log(`Block collision detected at [${Math.round(block.position.x)}, ${Math.round(block.position.y)}, ${Math.round(block.position.z)}]`);
+                }
+            });
         } else {
             conductor.material.color.setHex(0x1a1a1a);
             conductor.material.emissive.setHex(0x000000);
@@ -303,6 +331,7 @@ function startChallengeMode() {
     objects.length = 0;
     conductors.length = 0;
     world.clear();
+    clearCollisionOverlays();
     
     // Generate new terrain
     const terrainMesh = world.generateTerrain(blockMaterials.dirt);
@@ -374,9 +403,21 @@ function setupInteraction() {
                             if (conductorData.spark) {
                                 scene.remove(conductorData.spark);
                             }
+                            // Topology changed: clear overlays to be recalculated
+                            clearCollisionOverlays();
                         }
                         scene.remove(intersect.object);
                         objects.splice(objects.indexOf(intersect.object), 1);
+                        // Remove overlay if this block had one
+                        if (collidingBlocksGlowMap.has(intersect.object)) {
+                            const glowData = collidingBlocksGlowMap.get(intersect.object);
+                            if (glowData.overlay) {
+                                scene.remove(glowData.overlay);
+                                if (glowData.overlay.material) glowData.overlay.material.dispose();
+                                if (glowData.overlay.geometry) glowData.overlay.geometry.dispose();
+                            }
+                            collidingBlocksGlowMap.delete(intersect.object);
+                        }
                         return;
                     }
 
@@ -475,10 +516,10 @@ function setupInteraction() {
                                 const { tube, conductorData, spark } = createConductor(conductorFromPole, clickedPole, fromPos, toPos);
                                 
                                 // Check for collisions and mark accordingly
-                                const hasCollision = checkConductorCollision(fromPos, toPos, world);
-                                conductorData.hasCollision = hasCollision;
+                                const collisionData = checkConductorCollision(fromPos, toPos, world, objects);
+                                conductorData.hasCollision = collisionData.hasCollision;
                                 
-                                if (hasCollision) {
+                                if (collisionData.hasCollision) {
                                     // Show temporary warning but allow placement
                                     wireIndicator.textContent = '⚠️ Wire collision - adjust terrain to fix clearance!';
                                     wireIndicator.style.color = '#ff8800';
@@ -613,15 +654,32 @@ function animate() {
 
     player.update(delta, world, camera);
 
+    // Update colliding block overlays (subtle pulsing effect independent of hover)
+    collidingBlocksGlowMap.forEach((glowData) => {
+        glowData.glowPhase += delta * 2; // 2 Hz pulsing
+        if (glowData.glowPhase >= Math.PI * 2) {
+            glowData.glowPhase -= Math.PI * 2;
+        }
+        const pulse = 0.6 + Math.sin(glowData.glowPhase) * 0.4; // Glow from 0.2 to 1.0
+        if (glowData.overlay && glowData.overlay.material) {
+            // MeshBasicMaterial doesn't have emissive; simulate glow via opacity on an additive pass-like effect
+            // Keep it simple: modulate line brightness using color intensity approximation
+            const intensity = Math.max(0.2, Math.min(1.0, pulse));
+            const c = 0xFFFFFF;
+            // Scale color by intensity (approx by setting color with a lighter shade)
+            glowData.overlay.material.color.setScalar(intensity);
+        }
+    });
+
     // Update conductors
     conductors.forEach(conductor => {
         // Use stored attachment positions (already correct from creation)
         const fromPos = conductor.fromPos;
         const toPos = conductor.toPos;
-        const hasCollision = checkConductorCollision(fromPos, toPos, world);
+        const collisionData = checkConductorCollision(fromPos, toPos, world, objects);
 
-        if (hasCollision !== conductor.hasCollision) {
-            conductor.hasCollision = hasCollision;
+        if (collisionData.hasCollision !== conductor.hasCollision) {
+            conductor.hasCollision = collisionData.hasCollision;
             updateConductorVisuals(conductor);
         }
     });
@@ -632,10 +690,10 @@ function animate() {
         // Apply visual feedback to conductors in challenge mode
         conductors.forEach(conductor => {
             // Check for collisions first (red takes priority)
-            const hasCollision = checkConductorCollision(conductor.fromPos, conductor.toPos, world);
-            conductor.hasCollision = hasCollision;
+            const collisionData = checkConductorCollision(conductor.fromPos, conductor.toPos, world, objects);
+            conductor.hasCollision = collisionData.hasCollision;
             
-            if (hasCollision) {
+            if (collisionData.hasCollision) {
                 conductor.material.color.setHex(0xff0000);
                 conductor.material.emissive.setHex(0xff0000);
                 conductor.material.emissiveIntensity = 0.5;
@@ -682,8 +740,8 @@ function animate() {
         });
     }
 
-    // Raycasting
-    ui.updateRaycasting(camera, objects, highlightMesh);
+    // Raycasting (pass colliding overlay map for brighter frame on collisions)
+    ui.updateRaycasting(camera, objects, highlightMesh, collidingBlocksGlowMap);
 
     // Update minimap
     const playerPos = controls.getObject().position;
