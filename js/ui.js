@@ -61,7 +61,7 @@ export class UI {
         return highlightMesh;
     }
 
-    updateRaycasting(camera, objects, highlightMesh) {
+    updateRaycasting(camera, objects, highlightMesh, collidingBlocksGlowMap) {
         this.raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
         const intersects = this.raycaster.intersectObjects(objects);
 
@@ -76,7 +76,7 @@ export class UI {
             highlightMesh.visible = true;
             
                     // Check if this block is colliding with a conductor
-                    const isColliding = collidingBlocksMap.has(intersect.object);
+                    const isColliding = collidingBlocksGlowMap && collidingBlocksGlowMap.has(intersect.object);
                     if (isColliding) {
                         highlightMesh.material.emissiveIntensity = 1.2;
                     } else {
