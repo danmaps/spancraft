@@ -28,11 +28,16 @@ export class ChallengeMode {
         // Pricing configuration
         this.terrainCostMultiplier = 1.0;
         this.optimalSpanDistance = 15; // Optimal span distance for pricing
+        
+        // Scenario support
+        this.currentScenario = null;
+        this.prebuiltGrid = null;
     }
 
-    start(objects) {
+    start(objects, scenario = null) {
         this.isActive = true;
-        this.budget = 10000;
+        this.currentScenario = scenario;
+        this.budget = scenario ? scenario.budget : 10000;
         this.spent = 0;
         this.isPowered = false;
         
@@ -40,12 +45,90 @@ export class ChallengeMode {
         this.scene.background = new THREE.Color(0x1a1a2e);
         this.scene.fog = new THREE.Fog(0x1a1a2e, 10, 50);
         
-        // Create buildings
-        this.createSubstation(objects);
-        this.createCustomer(objects);
+        // Create buildings - only for non-prebuilt scenarios
+        if (!scenario || !scenario.setup.createPrebuiltGrid) {
+            this.createSubstation(objects);
+            this.createCustomer(objects);
+        }
         
         // Update UI
         this.updateUI();
+    }
+    
+    setPrebuiltGrid(grid) {
+        this.prebuiltGrid = grid;
+        this.substationPole = grid.substationPole;
+        this.customerPole = grid.customerPole;
+        
+        // Create buildings for prebuilt scenarios
+        if (grid.substationPole) {
+            this.createSubstationBuilding(grid.substationPole.position);
+        }
+        if (grid.customerPole) {
+            this.createCustomerBuilding(grid.customerPole.position);
+        }
+    }
+    
+    createSubstationBuilding(polePosition) {
+        const baseX = Math.floor(polePosition.x);
+        const baseZ = Math.floor(polePosition.z);
+        const baseY = Math.floor(polePosition.y) - 2; // 2 blocks below pole
+        
+        const buildingMat = new THREE.MeshStandardMaterial({ 
+            color: 0x00AA00, 
+            emissive: 0x00FF00,
+            emissiveIntensity: 0.3
+        });
+        
+        const blocks = [];
+        for (let x = 0; x < 2; x++) {
+            for (let y = 0; y < 2; y++) {
+                for (let z = 0; z < 2; z++) {
+                    const blockGeo = new THREE.BoxGeometry(1, 1, 1);
+                    const block = new THREE.Mesh(blockGeo, buildingMat.clone());
+                    block.position.set(baseX + x, baseY + y, baseZ + z);
+                    block.castShadow = true;
+                    block.receiveShadow = true;
+                    block.userData.isBuilding = true;
+                    block.userData.buildingType = 'substation';
+                    block.userData.blockType = 'substation';
+                    this.scene.add(block);
+                    blocks.push(block);
+                }
+            }
+        }
+        this.substation = blocks;
+    }
+    
+    createCustomerBuilding(polePosition) {
+        const baseX = Math.floor(polePosition.x);
+        const baseZ = Math.floor(polePosition.z);
+        const baseY = Math.floor(polePosition.y) - 2; // 2 blocks below pole
+        
+        const buildingMat = new THREE.MeshStandardMaterial({ 
+            color: 0x0000AA,
+            emissive: 0x0000FF,
+            emissiveIntensity: 0.0
+        });
+        
+        const blocks = [];
+        for (let x = 0; x < 2; x++) {
+            for (let y = 0; y < 2; y++) {
+                for (let z = 0; z < 2; z++) {
+                    const blockGeo = new THREE.BoxGeometry(1, 1, 1);
+                    const block = new THREE.Mesh(blockGeo, buildingMat.clone());
+                    block.position.set(baseX + x, baseY + y, baseZ + z);
+                    block.castShadow = true;
+                    block.receiveShadow = true;
+                    block.userData.isBuilding = true;
+                    block.userData.buildingType = 'customer';
+                    block.userData.blockType = 'customer';
+                    this.scene.add(block);
+                    blocks.push(block);
+                }
+            }
+        }
+        this.customer = blocks;
     }
 
     createSubstation(objects) {
@@ -341,7 +424,7 @@ export class ChallengeMode {
         }
     }
 
-    updateUI() {
+    updateUI(scenarioManager = null) {
         const remaining = this.budget - this.spent;
         const budgetUsagePercent = (this.spent / this.budget) * 100;
         const element = document.getElementById('challenge-mode-ui');
@@ -354,8 +437,28 @@ export class ChallengeMode {
                 budgetColor = '#FFAA00'; // Orange
             }
             
+            let timeDisplay = '';
+            if (scenarioManager && scenarioManager.currentScenario && scenarioManager.currentScenario.timeLimit) {
+                const remainingTime = scenarioManager.getRemainingTime();
+                const minutes = Math.floor(remainingTime / 60);
+                const seconds = Math.floor(remainingTime % 60);
+                const timeColor = remainingTime < 60 ? '#FF0000' : remainingTime < 120 ? '#FFAA00' : '#00FF00';
+                
+                timeDisplay = `
+                    <div>
+                        <div style="color: ${timeColor}; font-weight: bold; font-size: 18px;">
+                            Time: ${minutes}:${seconds.toString().padStart(2, '0')}
+                        </div>
+                        <div style="color: #AAAAAA; font-size: 12px;">
+                            Limit: ${Math.floor(scenarioManager.currentScenario.timeLimit / 60)}:${(scenarioManager.currentScenario.timeLimit % 60).toString().padStart(2, '0')}
+                        </div>
+                    </div>
+                `;
+            }
+            
             element.innerHTML = `
                 <div style="display: flex; gap: 20px; align-items: center; justify-content: center;">
+                    ${timeDisplay}
                     <div>
                         <div style="color: ${budgetColor}; font-weight: bold; font-size: 18px;">
                             Budget: $${remaining.toLocaleString()}

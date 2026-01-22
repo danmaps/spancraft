@@ -16,8 +16,9 @@ import { ChallengeMode } from './challengeMode.js';
 import { ActionHistory } from './actionHistory.js';
 import { Settings, initSettingsUI } from './settings.js';
 import { PowerSystem } from './powerSystem.js';
+import { ScenarioManager, SCENARIOS, createScenarioPickerUI, generateLightningStrikeGrid } from './scenarios.js';
 
-let scene, camera, renderer, composer, bloomPass, controls, world, player, ui, blockMaterials, geometries, minimap, challengeMode;
+let scene, camera, renderer, composer, bloomPass, controls, world, player, ui, blockMaterials, geometries, minimap, challengeMode, scenarioManager;
 let actionHistory, settings;
 let conductorFromPole = null;
 let conductorFromObject = null;
@@ -178,6 +179,7 @@ async function init() {
 
     // Initialize Challenge Mode
     challengeMode = new ChallengeMode(scene, world, blockMaterials, geometries, controls);
+    scenarioManager = new ScenarioManager(challengeMode);
     
     // Setup Challenge Mode button
     const challengeBtn = document.getElementById('challenge-btn');
@@ -188,7 +190,10 @@ async function init() {
                 document.exitPointerLock();
             }
             if (!challengeMode.isActive) {
-                startChallengeMode();
+                // Show scenario picker
+                createScenarioPickerUI((scenarioId) => {
+                    startChallengeMode(scenarioId);
+                });
             }
         });
     }
@@ -197,11 +202,13 @@ async function init() {
     window.addEventListener('challenge-restart', () => {
         challengeMode.completed = false;
         challengeMode.stars = 0;
-        startChallengeMode();
+        const currentScenarioId = scenarioManager.currentScenario?.id || 'basic';
+        startChallengeMode(currentScenarioId);
     });
     
     window.addEventListener('challenge-exit', () => {
         challengeMode.end();
+        scenarioManager.currentScenario = null;
         const challengeUI = document.getElementById('challenge-mode-ui');
         if (challengeUI) {
             challengeUI.style.display = 'none';
@@ -315,7 +322,14 @@ function recheckAllConductorCollisions() {
     });
 }
 
-function startChallengeMode() {
+function startChallengeMode(scenarioId = 'basic') {
+    // Load scenario
+    const scenario = scenarioManager.loadScenario(scenarioId);
+    if (!scenario) {
+        console.error('Failed to load scenario:', scenarioId);
+        return;
+    }
+    
     // Clear existing terrain and structures
     objects.forEach(obj => {
         if (obj.geometry) obj.geometry.dispose();
@@ -339,8 +353,30 @@ function startChallengeMode() {
     scene.add(terrainMesh);
     objects.push(terrainMesh);
     
+    // Generate prebuilt grid if needed
+    if (scenario.setup.createPrebuiltGrid) {
+        if (scenario.id === 'lightningStrike') {
+            const grid = generateLightningStrikeGrid(world, scene, blockMaterials, geometries, objects);
+            challengeMode.setPrebuiltGrid(grid);
+            
+            // Create initial conductors for the prebuilt grid
+            grid.conductors.forEach(condData => {
+                const fromPos = condData.from.position;
+                const toPos = condData.to.position;
+                const conductor = createConductor(fromPos, toPos, scene);
+                conductor.fromPole = condData.from;
+                conductor.toPole = condData.to;
+                conductors.push(conductor);
+                objects.push(conductor);
+            });
+        }
+    }
+    
     // Start challenge
-    challengeMode.start(objects);
+    challengeMode.start(objects, scenario);
+    
+    // Start scenario timer
+    scenarioManager.startScenario();
     
     // Show challenge UI
     const challengeUI = document.getElementById('challenge-mode-ui');
@@ -367,8 +403,156 @@ function startChallengeMode() {
         challengeUI.style.display = 'block';
     }
     
-    challengeMode.updateUI();
+    challengeMode.updateUI(scenarioManager);
+    
+    // Show scenario briefing
+    showScenarioBriefing(scenario);
 }
+
+function showScenarioBriefing(scenario) {
+    const existing = document.getElementById('scenario-briefing');
+    if (existing) existing.remove();
+    
+    const briefing = document.createElement('div');
+    briefing.id = 'scenario-briefing';
+    briefing.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: rgba(0, 0, 0, 0.95);
+        border: 2px solid #00FF00;
+        border-radius: 8px;
+        padding: 30px;
+        max-width: 600px;
+        z-index: 1001;
+        font-family: monospace;
+        color: #00FF00;
+    `;
+    
+    briefing.innerHTML = `
+        <div style="font-size: 24px; font-weight: bold; margin-bottom: 20px; text-align: center;">
+            ${scenario.name}
+        </div>
+        <div style="font-size: 14px; margin-bottom: 20px; line-height: 1.6; color: #AAAAAA;">
+            ${scenario.description}
+        </div>
+        <div style="font-size: 14px; margin-bottom: 20px;">
+            <div style="font-weight: bold; margin-bottom: 10px;">OBJECTIVES:</div>
+            <ul style="margin: 0; padding-left: 20px;">
+                ${scenario.objectives.map(obj => `<li style="margin: 5px 0;">${obj}</li>`).join('')}
+            </ul>
+        </div>
+        <div style="font-size: 14px; margin-bottom: 25px; color: #00AAAA;">
+            <div>Budget: $${scenario.budget.toLocaleString()}</div>
+            ${scenario.timeLimit ? `<div>Time Limit: ${Math.floor(scenario.timeLimit / 60)}:${(scenario.timeLimit % 60).toString().padStart(2, '0')}</div>` : ''}
+        </div>
+        <div style="text-align: center;">
+            <button id="start-scenario-btn" style="
+                padding: 12px 40px;
+                font-size: 16px;
+                background-color: #00AA00;
+                color: white;
+                border: 2px solid #00FF00;
+                border-radius: 5px;
+                cursor: pointer;
+                font-family: monospace;
+                font-weight: bold;
+            ">START</button>
+        </div>
+    `;
+    
+    document.body.appendChild(briefing);
+    
+    document.getElementById('start-scenario-btn').addEventListener('click', () => {
+        briefing.remove();
+        // Lock pointer to start playing
+        if (!controls.isLocked) {
+            renderer.domElement.click();
+        }
+    });
+}
+
+function showTimeExpiredScreen() {
+    // Release mouse control
+    if (controls.isLocked) {
+        document.exitPointerLock();
+    }
+    
+    const existing = document.getElementById('time-expired-ui');
+    if (existing) existing.remove();
+    
+    const screen = document.createElement('div');
+    screen.id = 'time-expired-ui';
+    screen.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        font-family: monospace;
+    `;
+    
+    const content = document.createElement('div');
+    content.style.cssText = `
+        text-align: center;
+        color: #FF0000;
+        font-size: 20px;
+    `;
+    
+    content.innerHTML = `
+        <div style="margin-bottom: 30px;">
+            <div style="font-size: 48px; font-weight: bold; margin-bottom: 20px;">TIME EXPIRED!</div>
+            <div style="font-size: 24px; color: #FFAA00;">Scenario Failed</div>
+        </div>
+        <div style="margin-top: 40px;">
+            <button id="time-expired-retry-btn" style="
+                padding: 12px 30px;
+                font-size: 16px;
+                background-color: #AA0000;
+                color: white;
+                border: 2px solid #FF0000;
+                border-radius: 5px;
+                cursor: pointer;
+                margin: 10px;
+                font-family: monospace;
+                font-weight: bold;
+            ">TRY AGAIN</button>
+            <button id="time-expired-exit-btn" style="
+                padding: 12px 30px;
+                font-size: 16px;
+                background-color: #555555;
+                color: white;
+                border: 2px solid #888888;
+                border-radius: 5px;
+                cursor: pointer;
+                margin: 10px;
+                font-family: monospace;
+                font-weight: bold;
+            ">EXIT</button>
+        </div>
+    `;
+    
+    screen.appendChild(content);
+    document.body.appendChild(screen);
+    
+    document.getElementById('time-expired-retry-btn').addEventListener('click', () => {
+        screen.remove();
+        window.dispatchEvent(new CustomEvent('challenge-restart'));
+    });
+    
+    document.getElementById('time-expired-exit-btn').addEventListener('click', () => {
+        screen.remove();
+        window.dispatchEvent(new CustomEvent('challenge-exit'));
+    });
+}
+
+
 
 function setupInteraction() {
     document.addEventListener('mousedown', (event) => {
@@ -686,7 +870,33 @@ function animate() {
 
     // Calculate powered circuit (outside challenge mode or in challenge mode)
     if (challengeMode.isActive) {
+        // Update UI with current time
+        if (scenarioManager.currentScenario) {
+            challengeMode.updateUI(scenarioManager);
+            
+            // Check for time expiration
+            if (scenarioManager.isTimeExpired() && !challengeMode.completed) {
+                challengeMode.completed = true;
+                challengeMode.stars = 0;
+                showTimeExpiredScreen();
+            }
+        }
+        
         challengeMode.checkPowered(conductors, world);
+        
+        // Track power status for scenarios
+        const wasPowered = challengeMode.isPowered;
+        challengeMode.checkPowered(conductors, world);
+        
+        // Record power changes for outage tracking
+        if (scenarioManager.currentScenario) {
+            if (!wasPowered && challengeMode.isPowered) {
+                scenarioManager.recordPowerRestored();
+            } else if (wasPowered && !challengeMode.isPowered) {
+                scenarioManager.recordPowerLost();
+            }
+        }
+        
         // Apply visual feedback to conductors in challenge mode
         conductors.forEach(conductor => {
             // Check for collisions first (red takes priority)
@@ -715,6 +925,10 @@ function animate() {
         if (challengeMode.isPowered && !challengeMode.completed) {
             // Check for conductor collisions before completing
             if (!challengeMode.hasCollidingConductors(conductors)) {
+                // Calculate stars from scenario manager if available
+                if (scenarioManager.currentScenario) {
+                    challengeMode.stars = scenarioManager.calculateScenarioStars();
+                }
                 challengeMode.finishChallenge();
             }
         }
