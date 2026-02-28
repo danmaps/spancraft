@@ -647,8 +647,7 @@ function setupInteraction() {
                     }
                     
                     world.delete(Math.round(blockPos.x), Math.round(blockPos.y), Math.round(blockPos.z));
-                                        recheckAllConductorCollisions();
-                    
+
                     // Recheck all conductor collisions
                     recheckAllConductorCollisions();
                 }
@@ -820,8 +819,7 @@ function setupInteraction() {
                     scene.add(voxel);
                     objects.push(voxel);
                     world.set(Math.round(voxelPos.x), Math.round(voxelPos.y), Math.round(voxelPos.z), blockType);
-                                        recheckAllConductorCollisions();
-                    
+
                     // Recheck all conductor collisions
                     recheckAllConductorCollisions();
                 }
