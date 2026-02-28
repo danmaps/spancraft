@@ -571,16 +571,20 @@ function setupInteraction() {
                         const condIndex = conductors.indexOf(conductorData);
                         if (condIndex > -1) {
                             // Record action in history
-                            actionHistory.recordAction({
+                            const conductorRemoveAction = {
                                 type: 'conductor-remove',
                                 fromPos: conductorData.fromPos.clone(),
                                 toPos: conductorData.toPos.clone()
-                            });
-                            
-                            // Record cost refund in challenge mode
+                            };
+
+                            // Record budget impact in challenge mode (so undo/redo can be consistent)
                             if (challengeMode.isActive) {
-                                challengeMode.recordConductorRemove(conductorData.fromPos, conductorData.toPos);
+                                const cost = challengeMode.calculateConductorCost(conductorData.fromPos, conductorData.toPos);
+                                conductorRemoveAction.costDelta = -cost; // removing a wire refunds
+                                challengeMode.applyCostDelta(conductorRemoveAction.costDelta);
                             }
+
+                            actionHistory.recordAction(conductorRemoveAction);
                             conductors.splice(condIndex, 1);
                             
                             // Remove spark
@@ -635,16 +639,21 @@ function setupInteraction() {
                     }
 
                     // Record action in history
-                    actionHistory.recordAction({
+                    const blockRemoveAction = {
                         type: 'block-remove',
                         blockType: removedBlockType,
                         position: blockPos.clone()
-                    });
+                    };
 
-                    // Record cost refund in challenge mode
+                    // Record budget impact in challenge mode (so undo/redo can be consistent)
                     if (challengeMode.isActive) {
-                        challengeMode.recordBlockRemove(blockPos);
+                        const cost = challengeMode.calculateBlockCost(blockPos);
+                        // Removing dirt costs money (excavation). Removing placed structures refunds.
+                        blockRemoveAction.costDelta = (removedBlockType === 'dirt' || removedBlockType === true) ? cost : -cost;
+                        challengeMode.applyCostDelta(blockRemoveAction.costDelta);
                     }
+
+                    actionHistory.recordAction(blockRemoveAction);
                     
                     world.delete(Math.round(blockPos.x), Math.round(blockPos.y), Math.round(blockPos.z));
                                         recheckAllConductorCollisions();
@@ -720,16 +729,20 @@ function setupInteraction() {
                                 recheckAllConductorCollisions();
 
                                 // Record action in history
-                                actionHistory.recordAction({
+                                const conductorPlaceAction = {
                                     type: 'conductor-place',
                                     fromPos: fromPos.clone(),
                                     toPos: toPos.clone()
-                                });
+                                };
 
-                                // Record cost in challenge mode
+                                // Record budget impact in challenge mode (so undo/redo can be consistent)
                                 if (challengeMode.isActive) {
-                                    challengeMode.recordConductorPlace(fromPos, toPos);
+                                    const cost = challengeMode.calculateConductorCost(fromPos, toPos);
+                                    conductorPlaceAction.costDelta = cost;
+                                    challengeMode.applyCostDelta(conductorPlaceAction.costDelta);
                                 }
+
+                                actionHistory.recordAction(conductorPlaceAction);
 
                                 conductorFromPole = null;
                                 conductorFromObject = null;
@@ -788,16 +801,20 @@ function setupInteraction() {
                         voxel.userData.hitbox = hitbox;
                         
                         // Record action in history
-                        actionHistory.recordAction({
+                        const blockPlaceAction = {
                             type: 'block-place',
                             blockType: blockType,
                             position: voxelPos.clone()
-                        });
-                        
-                        // Record cost in challenge mode
+                        };
+
+                        // Record budget impact in challenge mode (so undo/redo can be consistent)
                         if (challengeMode.isActive) {
-                            challengeMode.recordBlockPlace(voxelPos);
+                            const cost = challengeMode.calculateBlockCost(voxelPos);
+                            blockPlaceAction.costDelta = cost;
+                            challengeMode.applyCostDelta(blockPlaceAction.costDelta);
                         }
+
+                        actionHistory.recordAction(blockPlaceAction);
                         
                         // console.log('--- Pole Block Created ---');
                         // console.log('voxelPos:', voxelPos.clone());
@@ -805,16 +822,20 @@ function setupInteraction() {
                         // console.log('hitbox position:', hitbox.position.clone());
                     } else {
                         // Regular block - record action in history
-                        actionHistory.recordAction({
+                        const blockPlaceAction = {
                             type: 'block-place',
                             blockType: blockType,
                             position: voxelPos.clone()
-                        });
-                        
-                        // Record cost in challenge mode
+                        };
+
+                        // Record budget impact in challenge mode (so undo/redo can be consistent)
                         if (challengeMode.isActive) {
-                            challengeMode.recordBlockPlace(voxelPos);
+                            const cost = challengeMode.calculateBlockCost(voxelPos);
+                            blockPlaceAction.costDelta = cost;
+                            challengeMode.applyCostDelta(blockPlaceAction.costDelta);
                         }
+
+                        actionHistory.recordAction(blockPlaceAction);
                     }
 
                     scene.add(voxel);
@@ -973,6 +994,11 @@ function executeUndo(action) {
     if (!action) return;
     
     console.log(`[UNDO] Reversing action:`, action);
+
+    // Challenge Mode budget accounting: undo should reverse the original spend/refund.
+    if (challengeMode?.isActive && typeof action.costDelta === 'number') {
+        challengeMode.applyCostDelta(-action.costDelta);
+    }
     
     if (action.type === 'block-place') {
         const { x, y, z } = action.position;
@@ -1099,6 +1125,11 @@ function executeRedo(action) {
     if (!action) return;
     
     console.log(`[REDO] Reapplying action:`, action);
+
+    // Challenge Mode budget accounting: redo should re-apply the original spend/refund.
+    if (challengeMode?.isActive && typeof action.costDelta === 'number') {
+        challengeMode.applyCostDelta(action.costDelta);
+    }
     
     if (action.type === 'block-place') {
         const { x, y, z } = action.position;

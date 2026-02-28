@@ -321,10 +321,15 @@ export class ChallengeMode {
         return Math.round(baseCost * distancePenalty);
     }
 
+    applyCostDelta(delta) {
+        // Positive delta means spending money. Negative delta means refunding.
+        this.spent = Math.max(0, this.spent + delta);
+        this.updateUI();
+    }
+
     recordBlockPlace(position) {
         const cost = this.calculateBlockCost(position);
-        this.spent += cost;
-        this.updateUI();
+        this.applyCostDelta(cost);
     }
 
     recordBlockRemove(position) {
@@ -335,28 +340,20 @@ export class ChallengeMode {
             Math.round(position.y),
             Math.round(position.z)
         );
-        
-        if (blockType === 'dirt' || blockType === true) {
-            // Dirt removal costs money - add excavation cost
-            this.spent += this.calculateBlockCost(position);
-        } else {
-            // Other blocks (poles, structures) return cost
-            const cost = this.calculateBlockCost(position);
-            this.spent = Math.max(0, this.spent - cost);
-        }
-        this.updateUI();
+
+        const cost = this.calculateBlockCost(position);
+        const delta = (blockType === 'dirt' || blockType === true) ? cost : -cost;
+        this.applyCostDelta(delta);
     }
 
     recordConductorPlace(fromPos, toPos) {
         const cost = this.calculateConductorCost(fromPos, toPos);
-        this.spent += cost;
-        this.updateUI();
+        this.applyCostDelta(cost);
     }
 
     recordConductorRemove(fromPos, toPos) {
         const cost = this.calculateConductorCost(fromPos, toPos);
-        this.spent = Math.max(0, this.spent - cost);
-        this.updateUI();
+        this.applyCostDelta(-cost);
     }
 
     calculateStars() {
