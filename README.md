@@ -16,6 +16,16 @@ A Minecraft-inspired voxel world builder with power line engineering tools, buil
 - Jumping, collision detection, and realistic physics
 - Dynamic lighting and shadows
 
+### Challenge Mode - Scenario System
+- **Multiple Scenarios** - Different challenges teaching various aspects of grid management
+  - **Basic Connection** - Connect substation to customer (tutorial)
+  - **Lightning Strike Pole Replacement** - Repair damaged infrastructure under time pressure
+  - More scenarios coming soon (see CHALLENGE_SCENARIOS.md)
+- **Dynamic Budget System** - Costs vary based on terrain difficulty, pole height, and span length
+- **Star Rating System** - Earn 1-3 stars based on efficiency (time and budget)
+- **Time-Limited Challenges** - Race against the clock in repair scenarios
+- **Power Flow Simulation** - Complete circuits to energize customers
+
 ### Power Line Engineering
 - **Utility Pole System** - Two types of pole blocks for building power line structures
   - **Wood Poles** (key 7) - Traditional utility poles with brown wood texture
@@ -30,6 +40,7 @@ A Minecraft-inspired voxel world builder with power line engineering tools, buil
   - Physics-based curve uses Newton-Raphson solver for tension parameter
   - Red glow indicates clearance violation (wire intersecting terrain/poles)
   - Walkable wires - player passes through conductor without collision
+
 
 
 ## Controls
