@@ -29,6 +29,8 @@ export class MobileFieldControls {
         this.maxJoystickDistance = 44;
         this.lastLookX = 0;
         this.lastLookY = 0;
+        this.currentToolText = '';
+        this.currentInteractionSignature = '';
 
         this.setupEvents();
         this.updateVisibility();
@@ -144,9 +146,14 @@ export class MobileFieldControls {
             this.player.setTouchJumpPressed(false);
         };
 
+        const clearJumpState = () => {
+            this.jumpButton.classList.remove('pressed');
+            this.player.setTouchJumpPressed(false);
+        };
+
         this.jumpButton.addEventListener('pointerup', releaseJump);
         this.jumpButton.addEventListener('pointercancel', releaseJump);
-        this.jumpButton.addEventListener('lostpointercapture', releaseJump);
+        this.jumpButton.addEventListener('lostpointercapture', clearJumpState);
 
         this.interactButton.addEventListener('pointerdown', (event) => {
             if (!this.isVisible || this.interactButton.disabled) return;
@@ -204,18 +211,29 @@ export class MobileFieldControls {
     }
 
     updateToolIndicator(label) {
-        this.toolIndicator.textContent = label ? `Tool: ${label}` : 'Tool: Free look';
+        const nextText = label ? `Tool: ${label}` : 'Tool: Free look';
+        if (nextText === this.currentToolText) return;
+        this.currentToolText = nextText;
+        this.toolIndicator.textContent = nextText;
     }
 
     updateInteractionState(interaction) {
         if (!this.isVisible) return;
 
         const isAvailable = Boolean(interaction?.available);
+        const prompt = interaction?.prompt || '';
+        const actionLabel = interaction?.actionLabel || 'Interact';
+        const statusLabel = interaction?.statusLabel || 'FIELD MODE';
+        const nextSignature = `${isAvailable}|${prompt}|${actionLabel}|${statusLabel}`;
+
+        if (nextSignature === this.currentInteractionSignature) return;
+
+        this.currentInteractionSignature = nextSignature;
         this.interactButton.disabled = !isAvailable;
         this.interactButton.classList.toggle('available', isAvailable);
-        this.interactPrompt.textContent = interaction?.prompt || '';
-        this.interactButton.textContent = interaction?.actionLabel || 'Interact';
-        this.statusIndicator.textContent = interaction?.statusLabel || 'FIELD MODE';
+        this.interactPrompt.textContent = prompt;
+        this.interactButton.textContent = actionLabel;
+        this.statusIndicator.textContent = statusLabel;
     }
 
     markTutorialSeen() {

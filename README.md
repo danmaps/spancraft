@@ -51,7 +51,7 @@ A Minecraft-inspired voxel world builder with power line engineering tools, buil
 - **Space** - Jump (or fly up when in flying mode)
 - **Shift** - Fly down (when in flying mode)
 - **F** - Toggle flying mode
-- **Mobile viewport (≤1024px or coarse pointer)** - Left joystick moves, right side drags to look, **Jump** jumps, **Inspect** triggers context-sensitive field interaction
+- **Mobile-sized viewport or coarse pointer device** - Left joystick moves, right side drags to look, **Jump** jumps, **Inspect** triggers context-sensitive field interaction
 
 ### Building
 - **Left Click** - Remove block/pole/wire

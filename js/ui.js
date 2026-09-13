@@ -10,6 +10,7 @@ export class UI {
         this.onBlockSelected = null;
         this.onRaycast = null;
         this.blockOptions = Array.from(document.querySelectorAll('.block-option'));
+        this.currentIntersect = null;
         this.setupBlockSelector();
     }
 
@@ -72,6 +73,7 @@ export class UI {
 
         if (intersects.length > 0) {
             const intersect = intersects[0];
+            this.currentIntersect = intersect;
             const lookTarget = intersect.point.clone().sub(intersect.face.normal.clone().multiplyScalar(0.1));
             lookTarget.x = Math.round(lookTarget.x);
             lookTarget.y = Math.round(lookTarget.y);
@@ -88,6 +90,7 @@ export class UI {
                         highlightMesh.material.emissiveIntensity = 0.6;
                     }
         } else {
+            this.currentIntersect = null;
             highlightMesh.visible = false;
         }
     }

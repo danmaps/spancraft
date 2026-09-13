@@ -314,8 +314,7 @@ function createFieldInspectionMarker(x, z) {
 }
 
 function getCurrentIntersection() {
-    const intersects = ui.raycaster.intersectObjects(objects);
-    return intersects.length > 0 ? intersects[0] : null;
+    return ui.currentIntersect || null;
 }
 
 function getFieldInteractionState(intersect = getCurrentIntersection()) {

@@ -826,13 +826,13 @@
         <div class="block-option" data-type="metal-pole" title="Metal Pole"></div>
         <div class="block-option" data-type="conductor" title="Conductor Wire">⚡</div>
     </div>
-    <div id="mobile-field-hud">
-        <div id="mobile-look-region" aria-hidden="true"></div>
+    <div id="mobile-field-hud" aria-label="Mobile Field Mode controls">
+        <div id="mobile-look-region" role="region" aria-label="Look around touch region"></div>
         <div id="mobile-top-bar">
-            <div class="mobile-chip" id="mobile-status-indicator">FIELD MODE</div>
-            <div class="mobile-chip" id="mobile-tool-indicator">Tool: Dirt</div>
+            <div class="mobile-chip" id="mobile-status-indicator" role="status" aria-live="polite">FIELD MODE</div>
+            <div class="mobile-chip" id="mobile-tool-indicator" role="status" aria-live="polite">Tool: Dirt</div>
         </div>
-        <div class="mobile-chip" id="mobile-tutorial">
+        <div class="mobile-chip" id="mobile-tutorial" role="dialog" aria-live="polite" aria-label="Field Mode touch tutorial">
             <h3>Field Mode touch controls</h3>
             <p>Move: drag the left joystick.</p>
             <p>Look: drag the right side of the screen.</p>
@@ -840,17 +840,17 @@
             <p>Interact: aim at the marker, then tap Inspect.</p>
             <button id="mobile-tutorial-dismiss" type="button">Got it</button>
         </div>
-        <div class="mobile-chip" id="mobile-interact-prompt"></div>
-        <div id="field-inspection-toast"></div>
+        <div class="mobile-chip" id="mobile-interact-prompt" role="status" aria-live="polite"></div>
+        <div id="field-inspection-toast" role="status" aria-live="polite"></div>
         <div id="mobile-bottom-bar">
             <div id="mobile-joystick-shell">
-                <div id="mobile-joystick">
+                <div id="mobile-joystick" role="region" aria-label="Movement joystick touch region">
                     <div id="mobile-joystick-thumb"></div>
                 </div>
             </div>
             <div id="mobile-action-buttons">
-                <button class="mobile-action-button" id="mobile-jump-btn" type="button">Jump</button>
-                <button class="mobile-action-button" id="mobile-interact-btn" type="button" disabled>Inspect</button>
+                <button class="mobile-action-button" id="mobile-jump-btn" type="button" aria-label="Jump">Jump</button>
+                <button class="mobile-action-button" id="mobile-interact-btn" type="button" aria-label="Inspect field object" disabled>Inspect</button>
             </div>
         </div>
     </div>
