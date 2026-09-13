@@ -334,7 +334,8 @@ function getFieldInteractionState(intersect = getCurrentIntersection()) {
         };
     }
 
-    const playerPosition = controls.getObject().position;
+    const playerPosition = new THREE.Vector3();
+    camera.getWorldPosition(playerPosition);
     const distance = playerPosition.distanceTo(intersect.object.position);
     if (distance > 5) {
         return {

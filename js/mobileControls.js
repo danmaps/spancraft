@@ -49,6 +49,7 @@ export class MobileFieldControls {
             this.resetJoystick();
             this.lookPointerId = null;
             this.jumpButton.classList.remove('pressed');
+            this.player.setTouchJumpPressed(false);
             this.interactPrompt.textContent = '';
             this.interactButton.disabled = true;
             this.interactButton.classList.remove('available');
@@ -132,6 +133,7 @@ export class MobileFieldControls {
             if (!this.isVisible) return;
             event.preventDefault();
             event.stopPropagation();
+            this.jumpButton.setPointerCapture(event.pointerId);
             this.jumpButton.classList.add('pressed');
             this.player.setTouchJumpPressed(true);
         });
@@ -144,6 +146,7 @@ export class MobileFieldControls {
 
         this.jumpButton.addEventListener('pointerup', releaseJump);
         this.jumpButton.addEventListener('pointercancel', releaseJump);
+        this.jumpButton.addEventListener('lostpointercapture', releaseJump);
 
         this.interactButton.addEventListener('pointerdown', (event) => {
             if (!this.isVisible || this.interactButton.disabled) return;
