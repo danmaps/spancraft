@@ -51,11 +51,38 @@ A Minecraft-inspired voxel world builder with power line engineering tools, buil
 - **Space** - Jump (or fly up when in flying mode)
 - **Shift** - Fly down (when in flying mode)
 - **F** - Toggle flying mode
+- **Mobile viewport (≤1024px or coarse pointer)** - Left joystick moves, right side drags to look, **Jump** jumps, **Inspect** triggers context-sensitive field interaction
 
 ### Building
 - **Left Click** - Remove block/pole/wire
 - **Right Click** - Place block/pole or select pole for wiring
 - **Scroll Wheel** - Select block type
+
+## Mobile Field Mode Prototype
+
+Spancraft now includes a mobile-sized first-person Field Mode prototype layered onto the existing free-roam scene without changing desktop keyboard/mouse play.
+
+### Action map
+
+- **Move zone:** lower-left translucent virtual joystick drives the same player movement state used by keyboard input
+- **Look zone:** the right side of the screen is a dedicated drag region for first-person camera look
+- **Jump:** lower-right jump button
+- **Interact:** lower-right context button that only enables when the centered raycast can inspect the prototype field object
+- **Status:** top-left Field Mode chip plus the currently selected tool/block indicator
+- **Tutorial:** first-use callout for move, look, jump, and inspect
+
+### Touch zones and responsive layout
+
+- The mobile HUD appears automatically on mobile-sized viewports and coarse pointers
+- Controls respect `env(safe-area-inset-*)` so they stay clear of notches and home indicators
+- The center of the screen stays clear except for the existing crosshair and contextual inspect prompt
+- Portrait, landscape, and tablet widths share the same HUD, with the right-side look region expanding across the non-joystick play area
+
+### Current prototype assumptions
+
+- “Field Mode” currently maps to the existing first-person free-roam scene
+- Desktop pointer-lock building controls remain unchanged
+- The prototype interaction target is a nearby survey marker used to validate touch targeting and inspect/use flow before deeper field-object mechanics are added
 
 ### Utility Poles
 - Scroll to select wood poles or metal poles
@@ -76,4 +103,5 @@ A Minecraft-inspired voxel world builder with power line engineering tools, buil
 
 1. Run `python3 -m http.server` in the root directory
 2. Open http://localhost:8000 in your browser
-3. Click to lock the pointer and start building!
+3. On desktop, click to lock the pointer and start building
+4. On a mobile-sized viewport, the touch HUD appears automatically for joystick/look/jump/inspect play

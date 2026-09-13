@@ -15,6 +15,7 @@
             margin: 0;
             overflow: hidden;
             font-family: 'Arial Black', monospace;
+            touch-action: manipulation;
         }
 
         canvas {
@@ -103,13 +104,13 @@
         }
 
         #minimap-toggle {
-            top: 20px;
-            right: 20px;
+            top: calc(env(safe-area-inset-top, 0px) + 16px);
+            right: calc(env(safe-area-inset-right, 0px) + 16px);
         }
 
         #settings-toggle {
-            top: 20px;
-            right: 90px;
+            top: calc(env(safe-area-inset-top, 0px) + 16px);
+            right: calc(env(safe-area-inset-right, 0px) + 86px);
         }
 
         #minimap-toggle:hover, #settings-toggle:hover {
@@ -123,8 +124,8 @@
 
         #minimap {
             position: absolute;
-            top: 20px;
-            right: 20px;
+            top: calc(env(safe-area-inset-top, 0px) + 16px);
+            right: calc(env(safe-area-inset-right, 0px) + 16px);
             width: 300px;
             height: 300px;
             border: 4px solid #444;
@@ -148,8 +149,8 @@
 
         #github-link {
             position: absolute;
-            bottom: 20px;
-            right: 20px;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+            right: calc(env(safe-area-inset-right, 0px) + 16px);
             z-index: 100;
             display: flex;
             align-items: center;
@@ -179,8 +180,8 @@
 
         #instructions {
             position: absolute;
-            bottom: 90px;
-            left: 20px;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 86px);
+            left: calc(env(safe-area-inset-left, 0px) + 16px);
             color: #ccc;
             font-family: monospace;
             font-size: 11px;
@@ -213,7 +214,7 @@
 
         #block-selector {
             position: absolute;
-            bottom: 20px;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
             left: 50%;
             transform: translateX(-50%);
             display: flex;
@@ -355,8 +356,8 @@
 
         #ui-bar {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: calc(env(safe-area-inset-top, 0px) + 16px);
+            left: calc(env(safe-area-inset-left, 0px) + 16px);
             display: flex;
             flex-direction: column;
             align-items: flex-start;
@@ -508,6 +509,226 @@
             font-style: italic;
             margin-top: 4px;
         }
+
+        #mobile-field-hud {
+            position: fixed;
+            inset: 0;
+            z-index: 120;
+            pointer-events: none;
+            display: none;
+            user-select: none;
+            touch-action: none;
+        }
+
+        body.mobile-field-mode #mobile-field-hud {
+            display: block;
+        }
+
+        body.mobile-field-mode #pointer-lock-overlay,
+        body.mobile-field-mode #click-to-play,
+        body.mobile-field-mode #instructions,
+        body.mobile-field-mode #github-link,
+        body.mobile-field-mode #block-selector {
+            display: none !important;
+        }
+
+        #mobile-top-bar {
+            position: absolute;
+            top: calc(env(safe-area-inset-top, 0px) + 16px);
+            left: calc(env(safe-area-inset-left, 0px) + 16px);
+            right: calc(env(safe-area-inset-right, 0px) + 96px);
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .mobile-chip,
+        #field-inspection-toast {
+            background: rgba(10, 18, 18, 0.82);
+            border: 2px solid rgba(160, 255, 224, 0.6);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+            color: #eafff8;
+            font-size: 12px;
+            line-height: 1.35;
+            padding: 10px 14px;
+            border-radius: 16px;
+            backdrop-filter: blur(6px);
+        }
+
+        #mobile-tutorial {
+            position: absolute;
+            top: calc(env(safe-area-inset-top, 0px) + 72px);
+            right: calc(env(safe-area-inset-right, 0px) + 16px);
+            width: min(320px, calc(100vw - 32px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+            display: none;
+            pointer-events: auto;
+        }
+
+        #mobile-tutorial.visible {
+            display: block;
+        }
+
+        #mobile-tutorial h3 {
+            margin: 0 0 8px;
+            font-size: 14px;
+            color: #ffffff;
+        }
+
+        #mobile-tutorial p {
+            margin: 4px 0;
+            font-size: 12px;
+        }
+
+        #mobile-tutorial-dismiss {
+            margin-top: 10px;
+            width: 100%;
+            border: 0;
+            border-radius: 12px;
+            padding: 10px 12px;
+            background: rgba(111, 255, 210, 0.2);
+            color: #ffffff;
+            font-family: inherit;
+            font-weight: bold;
+        }
+
+        #mobile-look-region {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 60vw;
+            height: 100%;
+            pointer-events: auto;
+            touch-action: none;
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.01) 55%, rgba(255,255,255,0.03) 100%);
+        }
+
+        #mobile-look-region.active {
+            background: linear-gradient(90deg, transparent 0%, rgba(111,255,210,0.02) 50%, rgba(111,255,210,0.08) 100%);
+        }
+
+        #mobile-interact-prompt {
+            position: absolute;
+            left: 50%;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 104px);
+            transform: translateX(-50%);
+            min-width: 180px;
+            text-align: center;
+        }
+
+        #mobile-bottom-bar {
+            position: absolute;
+            left: calc(env(safe-area-inset-left, 0px) + 16px);
+            right: calc(env(safe-area-inset-right, 0px) + 16px);
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        #mobile-joystick-shell {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #mobile-joystick {
+            width: 132px;
+            height: 132px;
+            border-radius: 50%;
+            background: radial-gradient(circle at center, rgba(255,255,255,0.12) 0%, rgba(22,40,40,0.56) 60%, rgba(4,8,8,0.72) 100%);
+            border: 2px solid rgba(255,255,255,0.16);
+            position: relative;
+            pointer-events: auto;
+            touch-action: none;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+        }
+
+        #mobile-joystick.active {
+            border-color: rgba(111,255,210,0.8);
+            box-shadow: 0 0 18px rgba(111,255,210,0.25), inset 0 0 0 1px rgba(255,255,255,0.08);
+        }
+
+        #mobile-joystick-thumb {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            transform: translate(0px, 0px);
+            margin-left: -28px;
+            margin-top: -28px;
+            background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.95), rgba(208,214,220,0.78));
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+        }
+
+        #mobile-action-buttons {
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            pointer-events: auto;
+        }
+
+        .mobile-action-button {
+            border: 2px solid rgba(255,255,255,0.18);
+            background: rgba(12, 20, 22, 0.76);
+            color: #ffffff;
+            border-radius: 999px;
+            font-family: inherit;
+            font-weight: bold;
+            backdrop-filter: blur(6px);
+            box-shadow: 0 10px 18px rgba(0,0,0,0.25), inset 0 0 0 1px rgba(255,255,255,0.08);
+        }
+
+        .mobile-action-button.pressed {
+            transform: scale(0.96);
+            background: rgba(28, 42, 46, 0.9);
+        }
+
+        .mobile-action-button:disabled {
+            opacity: 0.4;
+        }
+
+        .mobile-action-button.available {
+            border-color: rgba(111,255,210,0.85);
+            box-shadow: 0 0 18px rgba(111,255,210,0.22), inset 0 0 0 1px rgba(255,255,255,0.08);
+        }
+
+        #mobile-jump-btn {
+            width: 88px;
+            height: 88px;
+            font-size: 18px;
+        }
+
+        #mobile-interact-btn {
+            width: 104px;
+            height: 104px;
+            font-size: 18px;
+        }
+
+        #field-inspection-toast {
+            position: absolute;
+            left: 50%;
+            top: calc(env(safe-area-inset-top, 0px) + 96px);
+            transform: translateX(-50%);
+            width: min(360px, calc(100vw - 32px));
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+        }
+
+        #field-inspection-toast.visible {
+            opacity: 1;
+        }
+
+        @media (orientation: portrait) {
+            #mobile-look-region {
+                width: 54vw;
+            }
+        }
     </style>
     <script type="importmap">
         {
@@ -605,6 +826,34 @@
         <div class="block-option" data-type="metal-pole" title="Metal Pole"></div>
         <div class="block-option" data-type="conductor" title="Conductor Wire">⚡</div>
     </div>
+    <div id="mobile-field-hud">
+        <div id="mobile-look-region" aria-hidden="true"></div>
+        <div id="mobile-top-bar">
+            <div class="mobile-chip" id="mobile-status-indicator">FIELD MODE</div>
+            <div class="mobile-chip" id="mobile-tool-indicator">Tool: Dirt</div>
+        </div>
+        <div class="mobile-chip" id="mobile-tutorial">
+            <h3>Field Mode touch controls</h3>
+            <p>Move: drag the left joystick.</p>
+            <p>Look: drag the right side of the screen.</p>
+            <p>Jump: tap Jump.</p>
+            <p>Interact: aim at the marker, then tap Inspect.</p>
+            <button id="mobile-tutorial-dismiss" type="button">Got it</button>
+        </div>
+        <div class="mobile-chip" id="mobile-interact-prompt"></div>
+        <div id="field-inspection-toast"></div>
+        <div id="mobile-bottom-bar">
+            <div id="mobile-joystick-shell">
+                <div id="mobile-joystick">
+                    <div id="mobile-joystick-thumb"></div>
+                </div>
+            </div>
+            <div id="mobile-action-buttons">
+                <button class="mobile-action-button" id="mobile-jump-btn" type="button">Jump</button>
+                <button class="mobile-action-button" id="mobile-interact-btn" type="button" disabled>Inspect</button>
+            </div>
+        </div>
+    </div>
     <a id="github-link" href="https://github.com/danmaps/spancraft" target="_blank" title="View Source on GitHub">
         <svg viewBox="0 0 98 96" xmlns="http://www.w3.org/2000/svg">
             <path fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z" />
@@ -617,7 +866,8 @@
         F: Toggle Flying<br>
         Left Click: Remove Block/Wire<br>
         Right Click: Place Block / Select Pole<br>
-        Scroll Wheel: Select Block Type
+        Scroll Wheel: Select Block Type<br>
+        Mobile viewport: left joystick, right-side look, Jump, Inspect
     </div>
     <script type="module">
         import './js/main.js';

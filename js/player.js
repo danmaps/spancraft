@@ -16,12 +16,23 @@ export class Player {
         this.playerWidth = 0.6;
         this.moveSpeed = moveSpeed;
         this.prevTime = performance.now();
+        this.touchForward = 0;
+        this.touchStrafe = 0;
+        this.touchControlsEnabled = false;
+        this.updateOverlayState = null;
     }
 
     setupControls() {
         const updateOverlay = () => {
             const overlay = document.getElementById('pointer-lock-overlay');
             const clickToPlay = document.getElementById('click-to-play');
+            const isMobileFieldMode = document.body.classList.contains('mobile-field-mode');
+
+            if (isMobileFieldMode || this.touchControlsEnabled) {
+                overlay.classList.add('hidden');
+                clickToPlay.classList.add('hidden');
+                return;
+            }
             
             if (document.pointerLockElement) {
                 // Pointer is locked - hide overlay
@@ -33,9 +44,12 @@ export class Player {
                 clickToPlay.classList.remove('hidden');
             }
         };
+        this.updateOverlayState = updateOverlay;
 
         const isUIElement = (target) => {
             return target.closest('#ui-bar') ||
+                target.closest('#mobile-field-hud') ||
+                target.closest('#field-inspection-toast') ||
                 target.closest('#settings-toggle') ||
                 target.closest('#minimap-toggle') ||
                 target.closest('#settings-modal') ||
@@ -73,6 +87,37 @@ export class Player {
 
         document.addEventListener('keydown', (e) => this.onKeyDown(e));
         document.addEventListener('keyup', (e) => this.onKeyUp(e));
+    }
+
+    setTouchControlsEnabled(enabled) {
+        this.touchControlsEnabled = enabled;
+        if (!enabled) {
+            this.touchForward = 0;
+            this.touchStrafe = 0;
+            this.moveUp = false;
+            this.moveDown = false;
+        }
+
+        if (this.updateOverlayState) {
+            this.updateOverlayState();
+        }
+    }
+
+    setTouchMovement(strafe, forward) {
+        this.touchStrafe = THREE.MathUtils.clamp(strafe, -1, 1);
+        this.touchForward = THREE.MathUtils.clamp(forward, -1, 1);
+    }
+
+    setTouchJumpPressed(pressed) {
+        if (this.isFlying) {
+            this.moveUp = pressed;
+            return;
+        }
+
+        if (pressed && this.canJump) {
+            this.velocity.y += 12;
+            this.canJump = false;
+        }
     }
 
     onKeyDown(event) {
@@ -151,7 +196,7 @@ export class Player {
     }
 
     update(delta, world, camera) {
-        if (!this.controls.isLocked) return;
+        if (!this.controls.isLocked && !this.touchControlsEnabled) return;
 
         // Friction
         this.velocity.x -= this.velocity.x * 10.0 * delta;
@@ -173,14 +218,17 @@ export class Player {
         right.crossVectors(forward, camera.up).normalize();
 
         const inputVector = new THREE.Vector3();
-        if (this.moveForward) inputVector.add(forward);
-        if (this.moveBackward) inputVector.sub(forward);
-        if (this.moveRight) inputVector.add(right);
-        if (this.moveLeft) inputVector.sub(right);
-        inputVector.normalize();
+        const forwardInput = (this.moveForward ? 1 : 0) - (this.moveBackward ? 1 : 0) + this.touchForward;
+        const strafeInput = (this.moveRight ? 1 : 0) - (this.moveLeft ? 1 : 0) + this.touchStrafe;
+
+        if (forwardInput !== 0) inputVector.addScaledVector(forward, forwardInput);
+        if (strafeInput !== 0) inputVector.addScaledVector(right, strafeInput);
+        if (inputVector.lengthSq() > 0) {
+            inputVector.normalize();
+        }
 
         const flySpeedMultiplier = this.isFlying ? 1.5 : 1.0;
-        if (this.moveForward || this.moveBackward || this.moveLeft || this.moveRight) {
+        if (forwardInput !== 0 || strafeInput !== 0) {
             this.velocity.x += inputVector.x * this.moveSpeed * 5.0 * delta * flySpeedMultiplier;
             this.velocity.z += inputVector.z * this.moveSpeed * 5.0 * delta * flySpeedMultiplier;
         }
