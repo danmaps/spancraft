@@ -9,14 +9,15 @@ export class UI {
         this.raycaster = new THREE.Raycaster();
         this.onBlockSelected = null;
         this.onRaycast = null;
+        this.blockOptions = Array.from(document.querySelectorAll('.block-option'));
+        this.currentIntersect = null;
         this.setupBlockSelector();
     }
 
     setupBlockSelector() {
-        const blockOptions = document.querySelectorAll('.block-option');
-        blockOptions.forEach((option, index) => {
+        this.blockOptions.forEach((option) => {
             option.addEventListener('click', (e) => {
-                blockOptions.forEach(opt => opt.classList.remove('selected'));
+                this.blockOptions.forEach(opt => opt.classList.remove('selected'));
                 option.classList.add('selected');
                 this.selectedBlockType = option.dataset.type;
                 if (this.onBlockSelected) {
@@ -27,24 +28,29 @@ export class UI {
 
         document.addEventListener('wheel', (e) => {
             e.preventDefault();
-            const currentIndex = Array.from(blockOptions).findIndex(opt => opt.classList.contains('selected'));
+            const currentIndex = this.blockOptions.findIndex(opt => opt.classList.contains('selected'));
             let newIndex;
             
             if (e.deltaY < 0) {
                 // Scroll up - previous block
-                newIndex = currentIndex > 0 ? currentIndex - 1 : blockOptions.length - 1;
+                newIndex = currentIndex > 0 ? currentIndex - 1 : this.blockOptions.length - 1;
             } else {
                 // Scroll down - next block
-                newIndex = currentIndex < blockOptions.length - 1 ? currentIndex + 1 : 0;
+                newIndex = currentIndex < this.blockOptions.length - 1 ? currentIndex + 1 : 0;
             }
             
-            blockOptions.forEach(opt => opt.classList.remove('selected'));
-            blockOptions[newIndex].classList.add('selected');
-            this.selectedBlockType = blockOptions[newIndex].dataset.type;
+            this.blockOptions.forEach(opt => opt.classList.remove('selected'));
+            this.blockOptions[newIndex].classList.add('selected');
+            this.selectedBlockType = this.blockOptions[newIndex].dataset.type;
             if (this.onBlockSelected) {
                 this.onBlockSelected(this.selectedBlockType);
             }
         }, { passive: false });
+    }
+
+    getSelectedLabel() {
+        const selectedOption = this.blockOptions.find((option) => option.classList.contains('selected'));
+        return selectedOption?.title || 'Free look';
     }
 
     getHighlightMesh() {
@@ -62,11 +68,13 @@ export class UI {
     }
 
     updateRaycasting(camera, objects, highlightMesh, collidingBlocksGlowMap) {
+        const previousIntersect = this.currentIntersect;
         this.raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
         const intersects = this.raycaster.intersectObjects(objects);
 
         if (intersects.length > 0) {
             const intersect = intersects[0];
+            this.currentIntersect = intersect;
             const lookTarget = intersect.point.clone().sub(intersect.face.normal.clone().multiplyScalar(0.1));
             lookTarget.x = Math.round(lookTarget.x);
             lookTarget.y = Math.round(lookTarget.y);
@@ -83,7 +91,16 @@ export class UI {
                         highlightMesh.material.emissiveIntensity = 0.6;
                     }
         } else {
+            this.currentIntersect = null;
             highlightMesh.visible = false;
+        }
+
+        const previousObject = previousIntersect?.object || null;
+        const currentObject = this.currentIntersect?.object || null;
+        const previousInstanceId = previousIntersect?.instanceId;
+        const currentInstanceId = this.currentIntersect?.instanceId;
+        if (this.onRaycast && (previousObject !== currentObject || previousInstanceId !== currentInstanceId)) {
+            this.onRaycast(this.currentIntersect);
         }
     }
 

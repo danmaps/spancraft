@@ -17,6 +17,7 @@ import { ActionHistory } from './actionHistory.js';
 import { Settings, initSettingsUI } from './settings.js';
 import { PowerSystem } from './powerSystem.js';
 import { ScenarioManager, SCENARIOS, createScenarioPickerUI, generateLightningStrikeGrid } from './scenarios.js';
+import { MobileFieldControls } from './mobileControls.js';
 
 let scene, camera, renderer, composer, bloomPass, controls, world, player, ui, blockMaterials, geometries, minimap, challengeMode, scenarioManager;
 let actionHistory, settings;
@@ -26,6 +27,8 @@ let conductors = [];
 let objects = [];
 let highlightMesh;
 let collidingBlocksGlowMap = new Map();
+let mobileFieldControls;
+let fieldInspectionToastTimeout = null;
 
 function clearCollisionOverlays() {
     collidingBlocksGlowMap.forEach((glowData) => {
@@ -138,10 +141,33 @@ async function init() {
             conductorFromObject = null;
             document.getElementById('wire-mode-indicator').textContent = '';
         }
+        if (mobileFieldControls) {
+            mobileFieldControls.updateToolIndicator(ui.getSelectedLabel());
+        }
+    };
+    ui.onRaycast = () => {
+        updateFieldModeUI();
     };
 
     highlightMesh = ui.getHighlightMesh();
     scene.add(highlightMesh);
+
+    const fieldMarker = createFieldInspectionMarker(spawnX + 3, spawnZ + 1);
+    scene.add(fieldMarker);
+    objects.push(fieldMarker);
+
+    mobileFieldControls = new MobileFieldControls({
+        player,
+        camera,
+        settings,
+        onInteract: () => {
+            performFieldInteraction();
+        },
+        onVisibilityChange: () => {
+            updateFieldModeUI();
+        }
+    });
+    mobileFieldControls.updateToolIndicator(ui.getSelectedLabel());
 
     // Setup export/import
     ui.setupExportImport(
@@ -258,12 +284,115 @@ async function init() {
         // Apply settings that don't require reload
         player.moveSpeed = newSettings.movementSpeed;
         scene.fog.far = newSettings.renderDistance;
+        updateFieldModeUI();
         
         console.log('Settings applied:', newSettings);
     });
 
     // Start animation loop
     animate();
+}
+
+function createFieldInspectionMarker(x, z) {
+    const markerHeight = world.getHeight(x, z) + 1.1;
+    const marker = new THREE.Mesh(
+        new THREE.BoxGeometry(0.9, 1.2, 0.9),
+        new THREE.MeshStandardMaterial({
+            color: 0x1f8f6d,
+            emissive: 0x6fffd2,
+            emissiveIntensity: 0.35
+        })
+    );
+    marker.position.set(x, markerHeight, z);
+    marker.castShadow = true;
+    marker.receiveShadow = true;
+    marker.userData.fieldInteraction = {
+        actionLabel: 'Inspect',
+        prompt: 'Tap to inspect survey marker',
+        title: 'Survey Marker',
+        description: 'Prototype field interaction: this marker stands in for a collectable or inspection target in Field Mode.',
+        toast: 'Survey marker inspected — the mobile Field Mode interact flow is active.'
+    };
+    return marker;
+}
+
+function getCurrentIntersection() {
+    if (ui.currentIntersect) {
+        return ui.currentIntersect;
+    }
+
+    const intersects = ui.raycaster.intersectObjects(objects);
+    return intersects.length > 0 ? intersects[0] : null;
+}
+
+function getFieldInteractionState(intersect = getCurrentIntersection()) {
+    if (!intersect) {
+        return {
+            available: false,
+            statusLabel: 'FIELD MODE'
+        };
+    }
+
+    const interaction = intersect.object.userData.fieldInteraction;
+    if (!interaction) {
+        return {
+            available: false,
+            statusLabel: 'FIELD MODE'
+        };
+    }
+
+    const playerPosition = new THREE.Vector3();
+    camera.getWorldPosition(playerPosition);
+    const distance = playerPosition.distanceTo(intersect.object.position);
+    if (distance > 5) {
+        return {
+            available: false,
+            prompt: 'Move closer to inspect',
+            actionLabel: interaction.actionLabel,
+            statusLabel: 'FIELD MODE'
+        };
+    }
+
+    return {
+        available: true,
+        prompt: interaction.prompt,
+        actionLabel: interaction.actionLabel,
+        statusLabel: interaction.title.toUpperCase(),
+        target: intersect.object
+    };
+}
+
+function showFieldInspectionToast(message) {
+    const toast = document.getElementById('field-inspection-toast');
+    if (!toast) return;
+
+    toast.textContent = message;
+    toast.classList.add('visible');
+
+    if (fieldInspectionToastTimeout) {
+        clearTimeout(fieldInspectionToastTimeout);
+    }
+
+    fieldInspectionToastTimeout = setTimeout(() => {
+        toast.classList.remove('visible');
+    }, 2600);
+}
+
+function performFieldInteraction() {
+    const fieldInteractionState = getFieldInteractionState();
+    if (!fieldInteractionState.available || !fieldInteractionState.target) {
+        return false;
+    }
+
+    const interaction = fieldInteractionState.target.userData.fieldInteraction;
+    showFieldInspectionToast(interaction.toast || interaction.description || interaction.prompt);
+    return true;
+}
+
+function updateFieldModeUI() {
+    if (!mobileFieldControls) return;
+    mobileFieldControls.updateToolIndicator(ui.getSelectedLabel());
+    mobileFieldControls.updateInteractionState(getFieldInteractionState());
 }
 
 function recheckAllConductorCollisions() {
@@ -559,291 +688,279 @@ function setupInteraction() {
         if (!controls.isLocked) return;
 
         if (highlightMesh.visible) {
-            if (event.button === 0) { // Left click: Remove
-                const intersects = ui.raycaster.intersectObjects(objects);
-                if (intersects.length > 0) {
-                    const intersect = intersects[0];
-                    const instanceId = intersect.instanceId;
+            const intersect = getCurrentIntersection();
+            if (!intersect) return;
 
-                    // Check if clicking on a conductor line
-                    if (intersect.object.userData.isConductor) {
-                        const conductorData = intersect.object.userData.conductorData;
-                        const condIndex = conductors.indexOf(conductorData);
-                        if (condIndex > -1) {
+            if (event.button === 0) { // Left click: Remove
+                if (intersect.object.userData.fieldInteraction) {
+                    performFieldInteraction();
+                    return;
+                }
+
+                const instanceId = intersect.instanceId;
+
+                // Check if clicking on a conductor line
+                if (intersect.object.userData.isConductor) {
+                    const conductorData = intersect.object.userData.conductorData;
+                    const condIndex = conductors.indexOf(conductorData);
+                    if (condIndex > -1) {
+                        // Record action in history
+                        const conductorRemoveAction = {
+                            type: 'conductor-remove',
+                            fromPos: conductorData.fromPos.clone(),
+                            toPos: conductorData.toPos.clone()
+                        };
+
+                        // Record budget impact in challenge mode (so undo/redo can be consistent)
+                        if (challengeMode.isActive) {
+                            const cost = challengeMode.calculateConductorCost(conductorData.fromPos, conductorData.toPos);
+                            conductorRemoveAction.costDelta = -cost; // removing a wire refunds
+                            challengeMode.applyCostDelta(conductorRemoveAction.costDelta);
+                        }
+
+                        actionHistory.recordAction(conductorRemoveAction);
+                        conductors.splice(condIndex, 1);
+                        
+                        // Remove spark
+                        if (conductorData.spark) {
+                            scene.remove(conductorData.spark);
+                        }
+                        // Topology changed: clear overlays to be recalculated
+                        clearCollisionOverlays();
+                    }
+                    scene.remove(intersect.object);
+                    objects.splice(objects.indexOf(intersect.object), 1);
+                    // Remove overlay if this block had one
+                    if (collidingBlocksGlowMap.has(intersect.object)) {
+                        const glowData = collidingBlocksGlowMap.get(intersect.object);
+                        if (glowData.overlay) {
+                            scene.remove(glowData.overlay);
+                            if (glowData.overlay.material) glowData.overlay.material.dispose();
+                            if (glowData.overlay.geometry) glowData.overlay.geometry.dispose();
+                        }
+                        collidingBlocksGlowMap.delete(intersect.object);
+                    }
+                    return;
+                }
+
+                let blockPos;
+                let removedBlockType;
+                if (instanceId !== undefined) {
+                    const matrix = new THREE.Matrix4();
+                    intersect.object.getMatrixAt(instanceId, matrix);
+                    blockPos = new THREE.Vector3().setFromMatrixPosition(matrix);
+                    removedBlockType = intersect.object.userData.blockType;
+
+                    matrix.scale(new THREE.Vector3(0, 0, 0));
+                    intersect.object.setMatrixAt(instanceId, matrix);
+                    intersect.object.instanceMatrix.needsUpdate = true;
+                } else {
+                    blockPos = intersect.object.position.clone();
+                    removedBlockType = intersect.object.userData.blockType;
+
+                    if (intersect.object.userData.isPoleHitbox) {
+                        const pole = intersect.object.userData.parentPole;
+                        scene.remove(pole);
+                        objects.splice(objects.indexOf(pole), 1);
+                    } else if (intersect.object.userData.isPole && intersect.object.userData.hitbox) {
+                        const hitbox = intersect.object.userData.hitbox;
+                        scene.remove(hitbox);
+                        objects.splice(objects.indexOf(hitbox), 1);
+                    }
+
+                    scene.remove(intersect.object);
+                    objects.splice(objects.indexOf(intersect.object), 1);
+                }
+
+                // Record action in history
+                const blockRemoveAction = {
+                    type: 'block-remove',
+                    blockType: removedBlockType,
+                    position: blockPos.clone()
+                };
+
+                // Record budget impact in challenge mode (so undo/redo can be consistent)
+                if (challengeMode.isActive) {
+                    const cost = challengeMode.calculateBlockCost(blockPos);
+                    // Removing dirt costs money (excavation). Removing placed structures refunds.
+                    blockRemoveAction.costDelta = (removedBlockType === 'dirt' || removedBlockType === true) ? cost : -cost;
+                    challengeMode.applyCostDelta(blockRemoveAction.costDelta);
+                }
+
+                actionHistory.recordAction(blockRemoveAction);
+                
+                world.delete(Math.round(blockPos.x), Math.round(blockPos.y), Math.round(blockPos.z));
+
+                // Recheck all conductor collisions
+                recheckAllConductorCollisions();
+            } else if (event.button === 2) { // Right click: Place or Select Pole
+                // Conductor mode
+                if (ui.selectedBlockType === BLOCK_TYPES.CONDUCTOR) {
+                    let clickedPole = null;
+                    let clickedObject = null;
+                    if (intersect.object.userData.isPoleHitbox) {
+                        clickedPole = intersect.object.userData.parentPole;
+                        clickedObject = intersect.object; // Use hitbox for position
+                    } else if (intersect.object.userData.isPole) {
+                        clickedPole = intersect.object;
+                        clickedObject = intersect.object.userData.hitbox || intersect.object;
+                    }
+
+                    if (clickedPole) {
+                        const wireIndicator = document.getElementById('wire-mode-indicator');
+                        if (!conductorFromPole) {
+                            conductorFromPole = clickedPole;
+                            conductorFromObject = clickedObject;
+                            wireIndicator.textContent = 'Select TO pole';
+                        } else {
+                            // Get attachment points - exact center of clicked block
+                            const fromPos = conductorFromObject.position.clone();
+                            const toPos = clickedObject.position.clone();
+
+                            if (fromPos.x === toPos.x && fromPos.z === toPos.z) {
+                                wireIndicator.textContent = 'Cannot connect same pole! Select FROM pole';
+                                conductorFromPole = null;
+                                conductorFromObject = null;
+                                return;
+                            }
+
+                            const { tube, conductorData, spark } = createConductor(conductorFromPole, clickedPole, fromPos, toPos);
+                            
+                            // Check for collisions and mark accordingly
+                            const collisionData = checkConductorCollision(fromPos, toPos, world, objects);
+                            conductorData.hasCollision = collisionData.hasCollision;
+                            
+                            if (collisionData.hasCollision) {
+                                // Show temporary warning but allow placement
+                                wireIndicator.textContent = '⚠️ Wire collision - adjust terrain to fix clearance!';
+                                wireIndicator.style.color = '#ff8800';
+                                setTimeout(() => {
+                                    wireIndicator.textContent = '';
+                                    wireIndicator.style.color = '#ffff00';
+                                }, 3000);
+                            }
+                            
+                            scene.add(tube);
+                            scene.add(spark);
+                            objects.push(tube);
+                            conductors.push(conductorData);
+                            recheckAllConductorCollisions();
+
                             // Record action in history
-                            const conductorRemoveAction = {
-                                type: 'conductor-remove',
-                                fromPos: conductorData.fromPos.clone(),
-                                toPos: conductorData.toPos.clone()
+                            const conductorPlaceAction = {
+                                type: 'conductor-place',
+                                fromPos: fromPos.clone(),
+                                toPos: toPos.clone()
                             };
 
                             // Record budget impact in challenge mode (so undo/redo can be consistent)
                             if (challengeMode.isActive) {
-                                const cost = challengeMode.calculateConductorCost(conductorData.fromPos, conductorData.toPos);
-                                conductorRemoveAction.costDelta = -cost; // removing a wire refunds
-                                challengeMode.applyCostDelta(conductorRemoveAction.costDelta);
+                                const cost = challengeMode.calculateConductorCost(fromPos, toPos);
+                                conductorPlaceAction.costDelta = cost;
+                                challengeMode.applyCostDelta(conductorPlaceAction.costDelta);
                             }
 
-                            actionHistory.recordAction(conductorRemoveAction);
-                            conductors.splice(condIndex, 1);
-                            
-                            // Remove spark
-                            if (conductorData.spark) {
-                                scene.remove(conductorData.spark);
-                            }
-                            // Topology changed: clear overlays to be recalculated
-                            clearCollisionOverlays();
+                            actionHistory.recordAction(conductorPlaceAction);
+                            conductorFromPole = null;
+                            conductorFromObject = null;
+                            wireIndicator.textContent = 'Select FROM pole';
                         }
-                        scene.remove(intersect.object);
-                        objects.splice(objects.indexOf(intersect.object), 1);
-                        // Remove overlay if this block had one
-                        if (collidingBlocksGlowMap.has(intersect.object)) {
-                            const glowData = collidingBlocksGlowMap.get(intersect.object);
-                            if (glowData.overlay) {
-                                scene.remove(glowData.overlay);
-                                if (glowData.overlay.material) glowData.overlay.material.dispose();
-                                if (glowData.overlay.geometry) glowData.overlay.geometry.dispose();
-                            }
-                            collidingBlocksGlowMap.delete(intersect.object);
-                        }
+                    }
+                    return;
+                }
+                // Check budget in challenge mode
+                if (challengeMode.isActive && !challengeMode.canPlace()) {
+                    return; // Can't place - over budget
+                }
+
+                // Place block
+                const voxelPos = intersect.point.clone().add(intersect.face.normal.clone().multiplyScalar(0.5));
+                voxelPos.x = Math.round(voxelPos.x);
+                voxelPos.y = Math.round(voxelPos.y);
+                voxelPos.z = Math.round(voxelPos.z);
+
+                const playerPos = controls.getObject().position;
+                const dx = Math.abs(playerPos.x - voxelPos.x);
+                const dz = Math.abs(playerPos.z - voxelPos.z);
+                const dy = playerPos.y - voxelPos.y;
+
+                if (dx < player.playerWidth / 2 + 0.5 && dz < player.playerWidth / 2 + 0.5) {
+                    if (dy > -1.0 && dy < 1.8) {
                         return;
                     }
+                }
 
-                    let blockPos;
-                    let removedBlockType;
-                    if (instanceId !== undefined) {
-                        const matrix = new THREE.Matrix4();
-                        intersect.object.getMatrixAt(instanceId, matrix);
-                        blockPos = new THREE.Vector3().setFromMatrixPosition(matrix);
-                        removedBlockType = intersect.object.userData.blockType;
+                const blockType = ui.selectedBlockType;
+                const useGeometry = isPoleType(blockType) ? geometries.pole : geometries.standard;
 
-                        matrix.scale(new THREE.Vector3(0, 0, 0));
-                        intersect.object.setMatrixAt(instanceId, matrix);
-                        intersect.object.instanceMatrix.needsUpdate = true;
-                    } else {
-                        blockPos = intersect.object.position.clone();
-                        removedBlockType = intersect.object.userData.blockType;
+                const voxel = new THREE.Mesh(useGeometry, blockMaterials[blockType]);
+                voxel.position.copy(voxelPos);
+                voxel.castShadow = true;
+                voxel.receiveShadow = true;
+                voxel.userData.blockType = blockType;
 
-                        if (intersect.object.userData.isPoleHitbox) {
-                            const pole = intersect.object.userData.parentPole;
-                            scene.remove(pole);
-                            objects.splice(objects.indexOf(pole), 1);
-                        } else if (intersect.object.userData.isPole && intersect.object.userData.hitbox) {
-                            const hitbox = intersect.object.userData.hitbox;
-                            scene.remove(hitbox);
-                            objects.splice(objects.indexOf(hitbox), 1);
-                        }
+                if (isPoleType(blockType)) {
+                    voxel.userData.isPole = true;
+                    voxel.userData.poleType = blockType;
 
-                        scene.remove(intersect.object);
-                        objects.splice(objects.indexOf(intersect.object), 1);
-                    }
-
+                    const hitboxGeometry = new THREE.BoxGeometry(1, 1, 1);
+                    const hitboxMaterial = new THREE.MeshBasicMaterial({
+                        visible: false,
+                        transparent: true,
+                        opacity: 0
+                    });
+                    const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
+                    hitbox.position.copy(voxelPos);
+                    hitbox.userData.isPoleHitbox = true;
+                    hitbox.userData.parentPole = voxel;
+                    scene.add(hitbox);
+                    objects.push(hitbox);
+                    voxel.userData.hitbox = hitbox;
+                    
                     // Record action in history
-                    const blockRemoveAction = {
-                        type: 'block-remove',
-                        blockType: removedBlockType,
-                        position: blockPos.clone()
+                    const blockPlaceAction = {
+                        type: 'block-place',
+                        blockType: blockType,
+                        position: voxelPos.clone()
                     };
 
                     // Record budget impact in challenge mode (so undo/redo can be consistent)
                     if (challengeMode.isActive) {
-                        const cost = challengeMode.calculateBlockCost(blockPos);
-                        // Removing dirt costs money (excavation). Removing placed structures refunds.
-                        blockRemoveAction.costDelta = (removedBlockType === 'dirt' || removedBlockType === true) ? cost : -cost;
-                        challengeMode.applyCostDelta(blockRemoveAction.costDelta);
+                        const cost = challengeMode.calculateBlockCost(voxelPos);
+                        blockPlaceAction.costDelta = cost;
+                        challengeMode.applyCostDelta(blockPlaceAction.costDelta);
                     }
 
-                    actionHistory.recordAction(blockRemoveAction);
+                    actionHistory.recordAction(blockPlaceAction);
                     
-                    world.delete(Math.round(blockPos.x), Math.round(blockPos.y), Math.round(blockPos.z));
+                    // console.log('--- Pole Block Created ---');
+                    // console.log('voxelPos:', voxelPos.clone());
+                    // console.log('pole mesh position:', voxel.position.clone());
+                    // console.log('hitbox position:', hitbox.position.clone());
+                } else {
+                    // Regular block - record action in history
+                    const blockPlaceAction = {
+                        type: 'block-place',
+                        blockType: blockType,
+                        position: voxelPos.clone()
+                    };
 
-                    // Recheck all conductor collisions
-                    recheckAllConductorCollisions();
+                    // Record budget impact in challenge mode (so undo/redo can be consistent)
+                    if (challengeMode.isActive) {
+                        const cost = challengeMode.calculateBlockCost(voxelPos);
+                        blockPlaceAction.costDelta = cost;
+                        challengeMode.applyCostDelta(blockPlaceAction.costDelta);
+                    }
+
+                    actionHistory.recordAction(blockPlaceAction);
                 }
-            } else if (event.button === 2) { // Right click: Place or Select Pole
-                const intersects = ui.raycaster.intersectObjects(objects);
-                if (intersects.length > 0) {
-                    const intersect = intersects[0];
 
-                    // Conductor mode
-                    if (ui.selectedBlockType === BLOCK_TYPES.CONDUCTOR) {
-                        let clickedPole = null;
-                        let clickedObject = null;
-                        if (intersect.object.userData.isPoleHitbox) {
-                            clickedPole = intersect.object.userData.parentPole;
-                            clickedObject = intersect.object; // Use hitbox for position
-                        } else if (intersect.object.userData.isPole) {
-                            clickedPole = intersect.object;
-                            clickedObject = intersect.object.userData.hitbox || intersect.object;
-                        }
+                scene.add(voxel);
+                objects.push(voxel);
+                world.set(Math.round(voxelPos.x), Math.round(voxelPos.y), Math.round(voxelPos.z), blockType);
 
-                        if (clickedPole) {
-                            const wireIndicator = document.getElementById('wire-mode-indicator');
-                            if (!conductorFromPole) {
-                                conductorFromPole = clickedPole;
-                                conductorFromObject = clickedObject;
-                                wireIndicator.textContent = 'Select TO pole';
-                            } else {
-                                // Debug: Log all relevant positions
-                                // console.log('--- Conductor Creation Debug ---');
-                                // console.log('FROM - clickedObject (hitbox) position:', conductorFromObject.position.clone());
-                                // console.log('FROM - parentPole position:', conductorFromPole.position.clone());
-                                // console.log('TO - clickedObject (hitbox) position:', clickedObject.position.clone());
-                                // console.log('TO - parentPole position:', clickedPole.position.clone());
-                                
-                                // Get attachment points - exact center of clicked block
-                                const fromPos = conductorFromObject.position.clone();
-                                const toPos = clickedObject.position.clone();
-                                
-                                // console.log('Final fromPos:', fromPos);
-                                // console.log('Final toPos:', toPos);
-
-                                if (fromPos.x === toPos.x && fromPos.z === toPos.z) {
-                                    wireIndicator.textContent = 'Cannot connect same pole! Select FROM pole';
-                                    conductorFromPole = null;
-                                    conductorFromObject = null;
-                                    return;
-                                }
-
-                                const { tube, conductorData, spark } = createConductor(conductorFromPole, clickedPole, fromPos, toPos);
-                                
-                                // Check for collisions and mark accordingly
-                                const collisionData = checkConductorCollision(fromPos, toPos, world, objects);
-                                conductorData.hasCollision = collisionData.hasCollision;
-                                
-                                if (collisionData.hasCollision) {
-                                    // Show temporary warning but allow placement
-                                    wireIndicator.textContent = '⚠️ Wire collision - adjust terrain to fix clearance!';
-                                    wireIndicator.style.color = '#ff8800';
-                                    setTimeout(() => {
-                                        wireIndicator.textContent = '';
-                                        wireIndicator.style.color = '#ffff00';
-                                    }, 3000);
-                                }
-                                
-                                scene.add(tube);
-                                scene.add(spark);
-                                objects.push(tube);
-                                conductors.push(conductorData);
-                                recheckAllConductorCollisions();
-
-                                // Record action in history
-                                const conductorPlaceAction = {
-                                    type: 'conductor-place',
-                                    fromPos: fromPos.clone(),
-                                    toPos: toPos.clone()
-                                };
-
-                                // Record budget impact in challenge mode (so undo/redo can be consistent)
-                                if (challengeMode.isActive) {
-                                    const cost = challengeMode.calculateConductorCost(fromPos, toPos);
-                                    conductorPlaceAction.costDelta = cost;
-                                    challengeMode.applyCostDelta(conductorPlaceAction.costDelta);
-                                }
-
-                                actionHistory.recordAction(conductorPlaceAction);
-
-                                conductorFromPole = null;
-                                conductorFromObject = null;
-                                wireIndicator.textContent = 'Select FROM pole';
-                            }
-                        }
-                        return;
-                    }
-                    // Check budget in challenge mode
-                    if (challengeMode.isActive && !challengeMode.canPlace()) {
-                        return; // Can't place - over budget
-                    }
-
-                    // Place block
-                    const voxelPos = intersect.point.clone().add(intersect.face.normal.clone().multiplyScalar(0.5));
-                    voxelPos.x = Math.round(voxelPos.x);
-                    voxelPos.y = Math.round(voxelPos.y);
-                    voxelPos.z = Math.round(voxelPos.z);
-
-                    const playerPos = controls.getObject().position;
-                    const dx = Math.abs(playerPos.x - voxelPos.x);
-                    const dz = Math.abs(playerPos.z - voxelPos.z);
-                    const dy = playerPos.y - voxelPos.y;
-
-                    if (dx < player.playerWidth / 2 + 0.5 && dz < player.playerWidth / 2 + 0.5) {
-                        if (dy > -1.0 && dy < 1.8) {
-                            return;
-                        }
-                    }
-
-                    const blockType = ui.selectedBlockType;
-                    const useGeometry = isPoleType(blockType) ? geometries.pole : geometries.standard;
-
-                    const voxel = new THREE.Mesh(useGeometry, blockMaterials[blockType]);
-                    voxel.position.copy(voxelPos);
-                    voxel.castShadow = true;
-                    voxel.receiveShadow = true;
-                    voxel.userData.blockType = blockType;
-
-                    if (isPoleType(blockType)) {
-                        voxel.userData.isPole = true;
-                        voxel.userData.poleType = blockType;
-
-                        const hitboxGeometry = new THREE.BoxGeometry(1, 1, 1);
-                        const hitboxMaterial = new THREE.MeshBasicMaterial({
-                            visible: false,
-                            transparent: true,
-                            opacity: 0
-                        });
-                        const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
-                        hitbox.position.copy(voxelPos);
-                        hitbox.userData.isPoleHitbox = true;
-                        hitbox.userData.parentPole = voxel;
-                        scene.add(hitbox);
-                        objects.push(hitbox);
-                        voxel.userData.hitbox = hitbox;
-                        
-                        // Record action in history
-                        const blockPlaceAction = {
-                            type: 'block-place',
-                            blockType: blockType,
-                            position: voxelPos.clone()
-                        };
-
-                        // Record budget impact in challenge mode (so undo/redo can be consistent)
-                        if (challengeMode.isActive) {
-                            const cost = challengeMode.calculateBlockCost(voxelPos);
-                            blockPlaceAction.costDelta = cost;
-                            challengeMode.applyCostDelta(blockPlaceAction.costDelta);
-                        }
-
-                        actionHistory.recordAction(blockPlaceAction);
-                        
-                        // console.log('--- Pole Block Created ---');
-                        // console.log('voxelPos:', voxelPos.clone());
-                        // console.log('pole mesh position:', voxel.position.clone());
-                        // console.log('hitbox position:', hitbox.position.clone());
-                    } else {
-                        // Regular block - record action in history
-                        const blockPlaceAction = {
-                            type: 'block-place',
-                            blockType: blockType,
-                            position: voxelPos.clone()
-                        };
-
-                        // Record budget impact in challenge mode (so undo/redo can be consistent)
-                        if (challengeMode.isActive) {
-                            const cost = challengeMode.calculateBlockCost(voxelPos);
-                            blockPlaceAction.costDelta = cost;
-                            challengeMode.applyCostDelta(blockPlaceAction.costDelta);
-                        }
-
-                        actionHistory.recordAction(blockPlaceAction);
-                    }
-
-                    scene.add(voxel);
-                    objects.push(voxel);
-                    world.set(Math.round(voxelPos.x), Math.round(voxelPos.y), Math.round(voxelPos.z), blockType);
-
-                    // Recheck all conductor collisions
-                    recheckAllConductorCollisions();
-                }
+                // Recheck all conductor collisions
+                recheckAllConductorCollisions();
             }
         }
     });
