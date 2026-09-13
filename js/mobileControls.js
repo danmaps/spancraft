@@ -45,6 +45,12 @@ export class MobileFieldControls {
     updateVisibility() {
         this.isVisible = this.isMobileViewport();
         document.body.classList.toggle('mobile-field-mode', this.isVisible);
+        this.hud.setAttribute('aria-hidden', String(!this.isVisible));
+        if (this.isVisible) {
+            this.hud.removeAttribute('inert');
+        } else {
+            this.hud.setAttribute('inert', '');
+        }
         this.player.setTouchControlsEnabled(this.isVisible);
 
         if (!this.isVisible) {

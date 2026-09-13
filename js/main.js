@@ -145,6 +145,9 @@ async function init() {
             mobileFieldControls.updateToolIndicator(ui.getSelectedLabel());
         }
     };
+    ui.onRaycast = () => {
+        updateFieldModeUI();
+    };
 
     highlightMesh = ui.getHighlightMesh();
     scene.add(highlightMesh);
@@ -314,7 +317,12 @@ function createFieldInspectionMarker(x, z) {
 }
 
 function getCurrentIntersection() {
-    return ui.currentIntersect || null;
+    if (ui.currentIntersect) {
+        return ui.currentIntersect;
+    }
+
+    const intersects = ui.raycaster.intersectObjects(objects);
+    return intersects.length > 0 ? intersects[0] : null;
 }
 
 function getFieldInteractionState(intersect = getCurrentIntersection()) {
@@ -1084,7 +1092,6 @@ function animate() {
 
     // Raycasting (pass colliding overlay map for brighter frame on collisions)
     ui.updateRaycasting(camera, objects, highlightMesh, collidingBlocksGlowMap);
-    updateFieldModeUI();
 
     // Update minimap
     const playerPos = controls.getObject().position;

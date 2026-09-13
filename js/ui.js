@@ -68,6 +68,7 @@ export class UI {
     }
 
     updateRaycasting(camera, objects, highlightMesh, collidingBlocksGlowMap) {
+        const previousIntersect = this.currentIntersect;
         this.raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
         const intersects = this.raycaster.intersectObjects(objects);
 
@@ -92,6 +93,14 @@ export class UI {
         } else {
             this.currentIntersect = null;
             highlightMesh.visible = false;
+        }
+
+        const previousObject = previousIntersect?.object || null;
+        const currentObject = this.currentIntersect?.object || null;
+        const previousInstanceId = previousIntersect?.instanceId;
+        const currentInstanceId = this.currentIntersect?.instanceId;
+        if (this.onRaycast && (previousObject !== currentObject || previousInstanceId !== currentInstanceId)) {
+            this.onRaycast(this.currentIntersect);
         }
     }
 
